@@ -7,6 +7,7 @@ GENESIS website
 https://www.r-ccs.riken.jp/labs/cbrt/
 
 - System requirements and installation guide: https://www.r-ccs.riken.jp/labs/cbrt/installation/
+  Typically, the installation will take less than 10 minutres. Please use "make -j" for fast installation.
 - Demo and tutorials: https://www.r-ccs.riken.jp/labs/cbrt/tutorials2022/
 - Instructions for use: https://github.com/RikenSugitaLab/cgdyntest
 
