@@ -36,6 +36,7 @@ cgdyn_SOURCES = \
 	cg_energy_bases.fpp \
 	cg_energy_go.fpp \
 	cg_energy_nonlocal.fpp \
+	cg_energy_martini.fpp \
 	cg_enefunc_fit.fpp \
 	cg_energy_restraints.fpp \
 	cg_energy.fpp \

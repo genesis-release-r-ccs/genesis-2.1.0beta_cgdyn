@@ -16,6 +16,8 @@ module cg_boundary_mod
 
   use cg_ensemble_str_mod
   use cg_boundary_str_mod
+  use cg_enefunc_str_mod
+  use cg_energy_mod
   use molecules_str_mod
   use fileio_rst_mod
   use fileio_control_mod
@@ -35,6 +37,7 @@ module cg_boundary_mod
     integer             :: num_cells_y    = 0
     integer             :: num_cells_z    = 0
     logical             :: calc_local_pbc = .false.
+    logical             :: load_balance   = .true.
   end type s_pbc_info
 
   type, public :: s_nobc_info
@@ -167,6 +170,8 @@ contains
                                bound_info%pbc_info%box_size_z)
       call read_ctrlfile_logical(handle, Section, 'local_pbc',  &
           bound_info%pbc_info%calc_local_pbc)
+      call read_ctrlfile_logical(handle, Section, 'load_balance',  &
+          bound_info%pbc_info%load_balance)
 
     case (BoundaryTypeNOBC)
       call read_ctrlfile_real (handle, Section, 'box_size_x',      &
@@ -235,7 +240,8 @@ contains
     !
     if (main_rank) then
 
-      write(MsgOut,'(A)') 'Read_Ctrl_Boundary> Parameters of Boundary Condition'
+      write(MsgOut,'(A)') &
+        'Read_Ctrl_Boundary> Parameters of Boundary Condition'
       write(MsgOut,'(A20,A10)') &
             '  type            = ', BoundaryTypeTypes(bound_info%type)
 
@@ -250,6 +256,9 @@ contains
 
         if (bound_info%pbc_info%calc_local_pbc) &
             write(MsgOut,'(A)') '  local_pbc       = yes'
+
+        if (.not. bound_info%pbc_info%load_balance) &
+            write(MsgOut,'(A)') '  load_balance    = no'
 
       case (BoundaryTypeNOBC)
 
@@ -266,9 +275,9 @@ contains
       write(MsgOut,'(A20,I10)')  &
             '  min_domain_cell = ', bound_info%min_domain_cell
 
-      if (bound_info%min_domain_cell /= 1 .and. &
-          bound_info%min_domain_cell /= 2)      &
-        call error_msg('min_domain_cell should be either 1 or 2')
+!     if (bound_info%min_domain_cell /= 1 .and. &
+!         bound_info%min_domain_cell /= 2)      &
+!       call error_msg('min_domain_cell should be either 1 or 2')
       
       if (bound_info%domain_x /= 0 .and. &
           bound_info%domain_y /= 0 .and. &
@@ -300,19 +309,22 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_boundary(bound_info, ensemble,                    &
+  subroutine setup_boundary(bound_info, ene_info, ensemble,          &
                             pairlistdist_ele, pairlistdist_126,      &
                             pairlistdist_PWMcos, pairlistdist_DNAbp, &
-                            pairlistdist_exv, molecule, rst, boundary)
+                            pairlistdist_exv, cellsize_min,          &
+                            molecule, rst, boundary)
 
     ! formal arguments
     type(s_boundary_info),   intent(in)    :: bound_info
+    type(s_ene_info),        intent(in)    :: ene_info
     integer,                 intent(in)    :: ensemble
     real(wp),                intent(in)    :: pairlistdist_ele
     real(wp),                intent(in)    :: pairlistdist_126
     real(wp),                intent(in)    :: pairlistdist_PWMcos
     real(wp),                intent(in)    :: pairlistdist_DNAbp
     real(wp),                intent(in)    :: pairlistdist_exv
+    real(wp),                intent(in)    :: cellsize_min
     type(s_rst),             intent(in)    :: rst
     type(s_molecule),        intent(in)    :: molecule
     type(s_boundary),        intent(inout) :: boundary
@@ -324,23 +336,11 @@ contains
 
     call init_boundary(boundary)
 
-    if (.not.((bound_info%domain_x == 2 .and. &
-               bound_info%domain_y == 1 .and. &
-               bound_info%domain_z == 1) .or. &
-              (bound_info%domain_x == 2 .and. &
-               bound_info%domain_y == 2 .and. &
-               bound_info%domain_z == 1) .or. &
-              (bound_info%domain_x == 1 .and. &
-               bound_info%domain_y == 1 .and. &
-               bound_info%domain_z == 1))) then
-
-      if (bound_info%domain_x == 1 .or. &
-          bound_info%domain_y == 1 .or. &
-          bound_info%domain_z == 1 ) then
-        call error_msg('Setup_Boundary> other than (2,1,1)/(2,2,1)/(1,1,1), &
-                       &domain[x,y,z] should be larger than 1')
-      end if
-
+    if (bound_info%domain_x == 1 .or. &
+        bound_info%domain_y == 1 .or. &
+        bound_info%domain_z == 1 ) then
+      call error_msg('Setup_Boundary> other than (2,1,1)/(2,2,1)/(1,1,1), &
+                      &domain[x,y,z] should be larger than 1')
     end if
 
     select case (bound_info%type)
@@ -394,9 +394,11 @@ contains
         box_size(1) = max(-coord_min(1)+0.1_wp,coord_max(1)+0.1_wp)
         boundary%box_size_x     = box_size(1)*2.0_wp
         if (boundary%box_size_x > boundary%box_size_x_max) &
-          call error_msg('calculated box_size_x is greater than box_size_x_max')
+          call error_msg('calculated box_size_x is greater than'//&
+                         ' box_size_x_max')
         if (boundary%box_size_x < boundary%box_size_x_min) &
-          write(Msgout, '(A)') 'WARNING : calculated box size_x is less than box_size_x_min'
+          write(Msgout, '(A)') 'WARNING : calculated box size_x is '// &
+                               'less than box_size_x_min'
       end if
 
       if (boundary%box_size_y < EPS) then
@@ -416,9 +418,11 @@ contains
         box_size(2) = max(-coord_min(2)+0.1_wp,coord_max(2)+0.1_wp)
         boundary%box_size_y     = box_size(2)*2.0_wp
         if (boundary%box_size_y > boundary%box_size_y_max) &
-          call error_msg('calculated box_size_y is greater than box_size_y_max')
+          call error_msg('calculated box_size_y is greater than '//&
+                         'box_size_y_max')
         if (boundary%box_size_y < boundary%box_size_y_min) &
-          write(Msgout, '(A)') 'WARNING : calculated box size_y is less than box_size_y_min'
+          write(Msgout, '(A)') 'WARNING : calculated box size_y is '//&
+                               'less than box_size_y_min'
       end if
 
       if (boundary%box_size_z < EPS) then
@@ -438,9 +442,11 @@ contains
         box_size(3) = max(-coord_min(3)+0.1_wp,coord_max(3)+0.1_wp)
         boundary%box_size_z     = box_size(3)*2.0_wp
         if (boundary%box_size_z > boundary%box_size_z_max) &
-          call error_msg('calculated box_size_z is greater than box_size_z_max')
+          call error_msg('calculated box_size_z is greater than '//&
+                         'box_size_z_max')
         if (boundary%box_size_z < boundary%box_size_z_min) &
-          write(Msgout, '(A)') 'WARNING : calculated box size_z is less than box_size_z_min'
+          write(Msgout, '(A)') 'WARNING : calculated box size_z is '//&
+                               'less than box_size_z_min'
       end if
  
       boundary%box_size_x_ref = boundary%box_size_x
@@ -460,6 +466,7 @@ contains
       boundary%box_size_y_ref = boundary%box_size_y
       boundary%box_size_z_ref = boundary%box_size_z
       boundary%calc_local_pbc = bound_info%pbc_info%calc_local_pbc
+      boundary%load_balance   = bound_info%pbc_info%load_balance
       boundary%min_domain_cell= bound_info%min_domain_cell
     
       if (rst%rstfile_type /= RstfileTypeUndef) then
@@ -476,19 +483,23 @@ contains
     end select
 
     call setup_processor_number(bound_info,          &
+                                ene_info,            &
                                 pairlistdist_ele,    &
                                 pairlistdist_126,    &
                                 pairlistdist_PWMcos, &
                                 pairlistdist_DNAbp,  &
                                 pairlistdist_exv,    &
+                                cellsize_min,        &
                                 ensemble, boundary)
 
-    call setup_boundary_cell   (ensemble,            &
+    call setup_boundary_cell   (ene_info,            &
+                                ensemble,            &
                                 pairlistdist_ele,    &
                                 pairlistdist_126,    &
                                 pairlistdist_PWMcos, &
                                 pairlistdist_DNAbp,  &
                                 pairlistdist_exv,    &
+                                cellsize_min,        &
                                 boundary)
 
     return
@@ -508,18 +519,20 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_processor_number(bound_info, pairlistdist_ele,            &
+  subroutine setup_processor_number(bound_info, ene_info, pairlistdist_ele,  &
                                     pairlistdist_126, pairlistdist_PWMcos,   &
                                     pairlistdist_DNAbp, pairlistdist_exv,    &
-                                    ensemble, boundary)
+                                    cellsize_min, ensemble, boundary)
 
     ! formal arguments
     type(s_boundary_info),   intent(in)    :: bound_info
+    type(s_ene_info),        intent(in)    :: ene_info
     real(wp),                intent(in)    :: pairlistdist_ele
     real(wp),                intent(in)    :: pairlistdist_126
     real(wp),                intent(in)    :: pairlistdist_PWMcos
     real(wp),                intent(in)    :: pairlistdist_DNAbp
     real(wp),                intent(in)    :: pairlistdist_exv
+    real(wp),                intent(in)    :: cellsize_min
     integer,                 intent(in)    :: ensemble
     type(s_boundary),        intent(inout) :: boundary
 
@@ -587,9 +600,13 @@ contains
     bsize_y = real(boundary%box_size_y,wp)
     bsize_z = real(boundary%box_size_z,wp)
 
-    cutoff = max(pairlistdist_ele,           pairlistdist_126,          &
-                 pairlistdist_PWMcos*2.0_wp, pairlistdist_DNAbp*2.0_wp, &
-                 pairlistdist_exv*2.0_wp)
+    if (ene_info%forcefield == ForcefieldGroMartini) then
+      cutoff = max(pairlistdist_ele*2.0_wp, cellsize_min*2.0_wp)
+    else
+      cutoff = max(pairlistdist_ele,           pairlistdist_126,          &
+                   pairlistdist_PWMcos*2.0_wp, pairlistdist_DNAbp*2.0_wp, &
+                   pairlistdist_exv*2.0_wp, cellsize_min*2.0_wp)
+    end if
 
     if (extend1) then
       nx  = int(bsize_x / (cutoff+0.6_wp))
@@ -665,18 +682,21 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine setup_boundary_cell(ensemble, pairlistdist_ele, pairlistdist_126, &
-                                 pairlistdist_PWMcos, pairlistdist_DNAbp,      &
-                                 pairlistdist_exv, boundary)
+  subroutine setup_boundary_cell(ene_info, ensemble, pairlistdist_ele,         &
+                                 pairlistdist_126, pairlistdist_PWMcos,        &
+                                 pairlistdist_DNAbp, pairlistdist_exv,         &
+                                 cellsize_min, boundary)
 
     ! formal arguments
-    integer,                 intent(in)    :: ensemble
-    real(wp),                intent(in)    :: pairlistdist_ele
-    real(wp),                intent(in)    :: pairlistdist_126
-    real(wp),                intent(in)    :: pairlistdist_PWMcos
-    real(wp),                intent(in)    :: pairlistdist_DNAbp
-    real(wp),                intent(in)    :: pairlistdist_exv
-    type(s_boundary),        intent(inout) :: boundary
+    type(s_ene_info),         intent(in)    :: ene_info
+    integer,                  intent(in)    :: ensemble
+    real(wp),                 intent(in)    :: pairlistdist_ele
+    real(wp),                 intent(in)    :: pairlistdist_126
+    real(wp),                 intent(in)    :: pairlistdist_PWMcos
+    real(wp),                 intent(in)    :: pairlistdist_DNAbp
+    real(wp),                 intent(in)    :: pairlistdist_exv
+    real(wp),                 intent(in)    :: cellsize_min
+    type(s_boundary), target, intent(inout) :: boundary
 
     ! local variables
     real(wp)                 :: csize_x, csize_y, csize_z, cutoff
@@ -685,7 +705,9 @@ contains
     integer                  :: inb,jnb,knb,inbs,jnbs,knbs,lc,lcnb,ln
     integer                  :: ncell_x, ncell_y, ncell_z
     logical                  :: extend, extend1
+    integer, pointer         :: num_domain(:)
 
+    num_domain  => boundary%num_domain
 
     extend  = .false.
 
@@ -695,9 +717,13 @@ contains
         ensemble == EnsembleNPgT) &
       extend1 = .true.
 
-    cutoff = max(pairlistdist_ele,           pairlistdist_126,          &
-                 pairlistdist_PWMcos*2.0_wp, pairlistdist_DNAbp*2.0_wp, &
-                 pairlistdist_exv*2.0_wp)
+    if (ene_info%forcefield == ForcefieldGroMartini) then
+      cutoff = max(pairlistdist_ele*2.0_wp, cellsize_min*2.0_wp)
+    else
+      cutoff = max(pairlistdist_ele,           pairlistdist_126,          &
+                   pairlistdist_PWMcos*2.0_wp, pairlistdist_DNAbp*2.0_wp, &
+                   pairlistdist_exv*2.0_wp,    cellsize_min*2.0_wp)
+    end if
 
     if (extend1) cutoff = cutoff + 1.2_wp
 
@@ -731,6 +757,14 @@ contains
       call error_msg('Setup_Boundary_Cell> too small boxsize/pairlistdist. '//&
                    'shorter pairlistdist or larger boxsize or less MPI processors'//&
                    ' should be used.')
+    if (.not. boundary%load_balance) then
+      k = mod(ncell_x, num_domain(1))
+      ncell_x = ncell_x - k
+      k = mod(ncell_y, num_domain(2))
+      ncell_y = ncell_y - k
+      k = mod(ncell_z, num_domain(3))
+      ncell_z = ncell_z - k
+    end if
 
     csize_x = bsize_x/real(ncell_x, wp)
     csize_y = bsize_y/real(ncell_y, wp)
@@ -746,7 +780,11 @@ contains
 
     ! prepare cell neighbor list
     !
-    call alloc_boundary(boundary, BoundaryCells_AICG2P, ncell)
+    if (ene_info%forcefield == ForcefieldGroMartini) then
+      call alloc_boundary(boundary, BoundaryCells_Martini, ncell)
+    else
+      call alloc_boundary(boundary, BoundaryCells_AICG2P, ncell)
+    end if
 
     do k = 0, ncell_z-1
     do j = 0, ncell_y-1
@@ -792,6 +830,8 @@ contains
 
         end do
       end do
+
+      if (ene_info%forcefield /= ForcefieldGroMartini) then
 
       do knb = k-2, k+2
 
@@ -845,6 +885,9 @@ contains
 
         end do
       end do
+
+      end if
+
     end do
     end do
     end do

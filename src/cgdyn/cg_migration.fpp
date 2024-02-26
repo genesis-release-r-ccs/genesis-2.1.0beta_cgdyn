@@ -28,6 +28,9 @@ module cg_migration_mod
   public :: update_outgoing_charge
   public :: update_outgoing_nocharge
   public :: update_incoming_ptl
+  public :: update_outgoing_charge_martini
+  public :: update_outgoing_nocharge_martini
+  public :: update_incoming_ptl_martini
   public :: update_outgoing_enefunc_bond
   public :: update_incoming_enefunc_bond
   public :: update_outgoing_enefunc_bondsq
@@ -585,7 +588,8 @@ contains
 #ifdef DEBUG
     do i = 1, ncel_local
       if (start_atom(i)+natom(i) > MaxAtom_domain) &
-        call error_msg('Debug: Update_Incoming_Atom> atom number exceeds MaxAtom_domain')
+        call error_msg('Debug: Update_Incoming_Atom> '// &
+                       'atom number exceeds MaxAtom_domain')
     end do
 #endif
 
@@ -734,6 +738,657 @@ contains
     return
 
   end subroutine update_incoming_ptl
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_outgoing_charge_martini
+  !> @brief        check charged particles going other cells (martini case)
+  !! @authors      JJ
+  !! @param[in]    boundary    : boundary condition information
+  !! @param[inout] domain      : domain information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_outgoing_charge_martini(boundary, domain)
+
+    ! formal arguments
+    type(s_boundary),    target, intent(in)    :: boundary
+    type(s_domain),      target, intent(inout) :: domain
+
+    ! local variable
+    real(wip)                    :: x_shift, y_shift, z_shift
+    real(wip)                    :: move(3)
+    integer                      :: i, icx, icy, icz, icel, ncel
+    integer                      :: ilist, ig, n_stay, num
+    integer                      :: icel_local, icel_bd, ip
+    integer                      :: ki, ko
+
+    real(wip),           pointer :: bsize_x, bsize_y, bsize_z
+    real(wip),           pointer :: csize_x, csize_y, csize_z
+    real(wip),           pointer :: coord(:,:), velocity(:,:)
+    real(wp),            pointer :: charge(:)
+    real(wip),           pointer :: mass(:)
+    real(wip),           pointer :: buf_stay_real(:)
+    real(wip),           pointer :: buf_move_real(:)
+    real(wip),           pointer :: buf_comm_real(:)
+    integer,             pointer :: ncel_x, ncel_y, ncel_z, ncel_local, ncel_bd
+    integer,             pointer :: natom(:), ncharge(:)
+    integer,             pointer :: cell_g2l(:), cell_g2b(:)
+    integer,             pointer :: cell_b2g(:)
+    integer,             pointer :: atmcls(:), atom_2_cell(:)
+    integer,             pointer :: id_l2g(:), id_g2l(:)
+    integer,             pointer :: charge_move(:), charge_comm(:)
+    integer,             pointer :: charge_stay(:), charge_comm1(:)
+    integer,             pointer :: cell_rank(:)
+    integer,             pointer :: buf_stay_int(:)
+    integer,             pointer :: buf_move_int(:)
+    integer,             pointer :: buf_comm_int(:)
+
+    bsize_x       => boundary%box_size_x
+    bsize_y       => boundary%box_size_y
+    bsize_z       => boundary%box_size_z
+    ncel_x        => boundary%num_cells_x
+    ncel_y        => boundary%num_cells_y
+    ncel_z        => boundary%num_cells_z
+    csize_x       => boundary%cell_size_x
+    csize_y       => boundary%cell_size_y
+    csize_z       => boundary%cell_size_z
+
+    ncel_local    => domain%num_cell_local
+    natom         => domain%num_atom
+    ncharge       => domain%num_charge
+    ncel_bd       => domain%num_cell_boundary
+    cell_g2l      => domain%cell_g2l
+    cell_g2b      => domain%cell_g2b
+    cell_b2g      => domain%cell_b2g
+    coord         => domain%coord
+    velocity      => domain%velocity
+    charge        => domain%charge
+    mass          => domain%mass
+    atmcls        => domain%atom_cls_no
+    atom_2_cell   => domain%atom_2_cell
+    id_l2g        => domain%id_l2g
+    id_g2l        => domain%id_g2l
+    cell_rank     => domain%domain_cell_rank
+    charge_move   => domain%type1_move
+    charge_comm   => domain%type1_comm
+    charge_comm1  => domain%type1_comm_move
+    charge_stay   => domain%type1_stay
+    buf_stay_real => domain%buf_var0_stay_real
+    buf_move_real => domain%buf_var0_move_real
+    buf_comm_real => domain%buf_var0_comm_real
+    buf_stay_int  => domain%buf_var0_stay_int 
+    buf_move_int  => domain%buf_var0_move_int 
+    buf_comm_int  => domain%buf_var0_comm_int 
+
+    ! initializaiton
+    !
+    ncel = ncel_local + ncel_bd
+    num  = domain%num_comm_proc
+    charge_move(1:ncel) = 0
+    charge_comm(1:num) = 0
+    charge_comm1(1:num) = 0
+    charge_stay(1:ncel_local) = 0
+
+    ! initialized the global index
+    !
+    !$omp parallel do private(ig,i)
+    do i = 1, domain%num_atom_domain+domain%num_atom_boundary
+      ig = id_l2g(i)
+      id_g2l(ig) = 0
+    end do
+    !$omp end parallel do
+
+    ! Check outgoing particles
+    !
+    n_stay = 0
+    ki     = 0
+    ko     = 0
+
+    do ilist = 1, domain%num_atom_domain
+
+      if (abs(charge(ilist)) > EPS) then
+
+        i = atom_2_cell(ilist)
+        x_shift = coord(ilist,1) - boundary%origin_x
+        y_shift = coord(ilist,2) - boundary%origin_y
+        z_shift = coord(ilist,3) - boundary%origin_z
+
+        !coordinate shifted to the first quadrant and set into the boundary box
+        if (boundary%type == BoundaryTypePBC) then
+          move(1) = bsize_x*0.5_wip - bsize_x*anint(x_shift/bsize_x)
+          move(2) = bsize_y*0.5_wip - bsize_y*anint(y_shift/bsize_y)
+          move(3) = bsize_z*0.5_wip - bsize_z*anint(z_shift/bsize_z)
+          x_shift = x_shift + move(1)
+          y_shift = y_shift + move(2)
+          z_shift = z_shift + move(3)
+        else
+          x_shift = x_shift + bsize_x*0.5_wip
+          y_shift = y_shift + bsize_y*0.5_wip
+          z_shift = z_shift + bsize_z*0.5_wip
+        end if
+
+        !assign which cell
+        icx = int(x_shift/csize_x)
+        icy = int(y_shift/csize_y)
+        icz = int(z_shift/csize_z)
+        if (icx == ncel_x) icx = icx - 1
+        if (icy == ncel_y) icy = icy - 1
+        if (icz == ncel_z) icz = icz - 1
+        icel = 1 + icx + icy*ncel_x + icz*ncel_x*ncel_y
+        icel_local = cell_g2l(icel)
+        icel_bd    = cell_g2b(icel)
+
+        if (icel_local /= i) then
+
+          if (icel_local /= 0) then
+
+            ki = ki + 1
+            charge_move(icel_local) = charge_move(icel_local) + 1
+            buf_move_real(8*ki-7) = coord    (ilist,1)
+            buf_move_real(8*ki-6) = coord    (ilist,2)
+            buf_move_real(8*ki-5) = coord    (ilist,3)
+            buf_move_real(8*ki-4) = velocity (ilist,1)
+            buf_move_real(8*ki-3) = velocity (ilist,2)
+            buf_move_real(8*ki-2) = velocity (ilist,3)
+            buf_move_real(8*ki-1) = mass     (ilist  )
+            buf_move_real(8*ki  ) = charge   (ilist  )
+            buf_move_int (3*ki-2) = icel_local
+            buf_move_int (3*ki-1) = atmcls   (ilist  )
+            buf_move_int (3*ki-0) = id_l2g   (ilist  )
+
+          else if (icel_bd /= 0) then
+
+            ig = cell_b2g(icel_bd)
+            icel_bd = icel_bd + ncel_local
+            ip = cell_rank(icel_bd)
+            charge_comm(ip) = charge_comm(ip) + 1
+            ko = ko + 1
+            buf_comm_real(8*ko-7) = coord    (ilist,1)
+            buf_comm_real(8*ko-6) = coord    (ilist,2)
+            buf_comm_real(8*ko-5) = coord    (ilist,3)
+            buf_comm_real(8*ko-4) = velocity (ilist,1)
+            buf_comm_real(8*ko-3) = velocity (ilist,2)
+            buf_comm_real(8*ko-2) = velocity (ilist,3)
+            buf_comm_real(8*ko-1) = mass     (ilist  )
+            buf_comm_real(8*ko  ) = charge   (ilist  )
+            buf_comm_int (4*ko-3) = ip
+            buf_comm_int (4*ko-2) = ig
+            buf_comm_int (4*ko-1) = atmcls   (ilist  )
+            buf_comm_int (4*ko-0) = id_l2g   (ilist  )
+
+          end if
+
+        else
+
+          n_stay = n_stay + 1
+          charge_stay(i) = charge_stay(i) + 1
+          buf_stay_real(8*n_stay-7) = coord    (ilist,1)
+          buf_stay_real(8*n_stay-6) = coord    (ilist,2)
+          buf_stay_real(8*n_stay-5) = coord    (ilist,3)
+          buf_stay_real(8*n_stay-4) = velocity (ilist,1)
+          buf_stay_real(8*n_stay-3) = velocity (ilist,2)
+          buf_stay_real(8*n_stay-2) = velocity (ilist,3)
+          buf_stay_real(8*n_stay-1) = mass     (ilist  )
+          buf_stay_real(8*n_stay  ) = charge   (ilist  )
+          buf_stay_int (3*n_stay-2) = i
+          buf_stay_int (3*n_stay-1) = atmcls   (ilist  )
+          buf_stay_int (3*n_stay-0) = id_l2g   (ilist  )
+
+        end if
+
+      end if
+
+    end do
+
+    domain%n_stay1 = n_stay
+    domain%charge_move_domain = ki
+    domain%charge_comm_domain = ko
+
+    return
+
+  end subroutine update_outgoing_charge_martini
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_outgoing_nocharge_martini
+  !> @brief        check noncharged particles going other cells (martini)
+  !! @authors      JJ
+  !! @param[in]    boundary    : boundary condition information
+  !! @param[inout] domain      : domain information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_outgoing_nocharge_martini(boundary, domain)
+
+    ! formal arguments
+    type(s_boundary),    target, intent(in)    :: boundary
+    type(s_domain),      target, intent(inout) :: domain
+
+    ! local variable
+    real(wip)                    :: x_shift, y_shift, z_shift
+    real(wip)                    :: move(3)
+    integer                      :: i, icx, icy, icz, icel, ncel
+    integer                      :: ilist, ig, n_stay, n_stay_int, n_stay_real
+    integer                      :: icel_local, icel_bd, ip, num
+    integer                      :: ki_int, ki_real, ko_int, ko_real, ki, ko
+
+    real(wip),           pointer :: bsize_x, bsize_y, bsize_z
+    real(wip),           pointer :: csize_x, csize_y, csize_z
+    real(wip),           pointer :: coord(:,:), velocity(:,:)
+    real(wp),            pointer :: charge(:)
+    real(wip),           pointer :: mass(:)
+    real(wip),           pointer :: buf_stay_real(:)
+    real(wip),           pointer :: buf_move_real(:)
+    real(wip),           pointer :: buf_comm_real(:)
+    integer,             pointer :: ncel_x, ncel_y, ncel_z, ncel_local, ncel_bd
+    integer,             pointer :: natom(:), ncharge(:) 
+    integer,             pointer :: cell_g2l(:), cell_g2b(:), cell_b2g(:)
+    integer,             pointer :: atmcls(:), atom_2_cell(:)
+    integer,             pointer :: id_l2g(:), id_g2l(:)
+    integer,             pointer :: nocharge_move(:), nocharge_stay(:)
+    integer,             pointer :: nocharge_comm(:), nocharge_comm1(:)
+    integer,             pointer :: cell_rank(:)
+    integer,             pointer :: buf_stay_int(:)
+    integer,             pointer :: buf_move_int(:)
+    integer,             pointer :: buf_comm_int(:)
+
+
+    bsize_x       => boundary%box_size_x
+    bsize_y       => boundary%box_size_y
+    bsize_z       => boundary%box_size_z
+    ncel_x        => boundary%num_cells_x
+    ncel_y        => boundary%num_cells_y
+    ncel_z        => boundary%num_cells_z
+    csize_x       => boundary%cell_size_x
+    csize_y       => boundary%cell_size_y
+    csize_z       => boundary%cell_size_z
+
+    ncel_local    => domain%num_cell_local
+    natom         => domain%num_atom
+    ncharge       => domain%num_charge
+    ncel_bd       => domain%num_cell_boundary
+    cell_g2l      => domain%cell_g2l
+    cell_g2b      => domain%cell_g2b
+    cell_b2g      => domain%cell_b2g
+    coord         => domain%coord
+    velocity      => domain%velocity
+    charge        => domain%charge
+    mass          => domain%mass
+    atmcls        => domain%atom_cls_no
+    atom_2_cell   => domain%atom_2_cell
+    id_l2g        => domain%id_l2g
+    id_g2l        => domain%id_g2l
+    cell_rank     => domain%domain_cell_rank
+    nocharge_move => domain%type2_move
+    nocharge_stay => domain%type2_stay
+    nocharge_comm => domain%type2_comm
+    nocharge_comm1=> domain%type2_comm_move
+    buf_stay_real => domain%buf_var0_stay_real
+    buf_move_real => domain%buf_var0_move_real
+    buf_comm_real => domain%buf_var0_comm_real
+    buf_stay_int  => domain%buf_var0_stay_int 
+    buf_move_int  => domain%buf_var0_move_int 
+    buf_comm_int  => domain%buf_var0_comm_int 
+
+    ! initializaiton
+    !
+    ncel = ncel_local + ncel_bd
+    num  = domain%num_comm_proc
+
+    nocharge_move(1:ncel) = 0
+    nocharge_comm(1:num) = 0
+    nocharge_stay(1:ncel_local) = 0
+
+    n_stay_int  = domain%n_stay1 * 3
+    n_stay_real = domain%n_stay1 * 8
+    ki_int      = domain%charge_move_domain * 3
+    ki_real     = domain%charge_move_domain * 8
+    ko_int      = domain%charge_comm_domain * 4
+    ko_real     = domain%charge_comm_domain * 8
+
+    ! Check outgoing particles
+    !
+    n_stay = 0
+    ki = 0
+    ko = 0
+
+    do ilist = 1, domain%num_atom_domain
+
+      if (abs(charge(ilist)) < EPS) then
+
+        i = atom_2_cell(ilist)
+        x_shift = coord(ilist,1) - boundary%origin_x
+        y_shift = coord(ilist,2) - boundary%origin_y
+        z_shift = coord(ilist,3) - boundary%origin_z
+
+        !coordinate shifted to the first quadrant and set into the boundary box
+        if (boundary%type == BoundaryTypePBC) then
+          move(1) = bsize_x*0.5_wip - bsize_x*anint(x_shift/bsize_x)
+          move(2) = bsize_y*0.5_wip - bsize_y*anint(y_shift/bsize_y)
+          move(3) = bsize_z*0.5_wip - bsize_z*anint(z_shift/bsize_z)
+          x_shift = x_shift + move(1)
+          y_shift = y_shift + move(2)
+          z_shift = z_shift + move(3)
+        else
+          x_shift = x_shift + bsize_x*0.5_wip
+          y_shift = y_shift + bsize_y*0.5_wip
+          z_shift = z_shift + bsize_z*0.5_wip
+        end if
+
+        !assign which cell
+        icx = int(x_shift/csize_x)
+        icy = int(y_shift/csize_y)
+        icz = int(z_shift/csize_z)
+        if (icx == ncel_x) icx = icx - 1
+        if (icy == ncel_y) icy = icy - 1
+        if (icz == ncel_z) icz = icz - 1
+        icel = 1 + icx + icy*ncel_x + icz*ncel_x*ncel_y
+        icel_local = cell_g2l(icel)
+        icel_bd    = cell_g2b(icel)
+
+        if (icel_local /= i) then
+
+          if (icel_local /= 0) then
+
+            ki = ki + 1
+            nocharge_move(icel_local) = nocharge_move(icel_local) + 1
+            buf_move_real(ki_real+8*ki-7) = coord    (ilist,1)
+            buf_move_real(ki_real+8*ki-6) = coord    (ilist,2)
+            buf_move_real(ki_real+8*ki-5) = coord    (ilist,3)
+            buf_move_real(ki_real+8*ki-4) = velocity (ilist,1)
+            buf_move_real(ki_real+8*ki-3) = velocity (ilist,2)
+            buf_move_real(ki_real+8*ki-2) = velocity (ilist,3)
+            buf_move_real(ki_real+8*ki-1) = mass     (ilist  )
+            buf_move_real(ki_real+8*ki  ) = charge   (ilist  )
+            buf_move_int (ki_int +3*ki-2) = icel_local
+            buf_move_int (ki_int +3*ki-1) = atmcls   (ilist  )
+            buf_move_int (ki_int +3*ki-0) = id_l2g   (ilist  )
+
+          else if (icel_bd /= 0) then
+
+            ig = cell_b2g(icel_bd)
+            icel_bd = icel_bd + ncel_local
+            ip = cell_rank(icel_bd)
+            nocharge_comm(ip) = nocharge_comm(ip) + 1
+            ko = ko + 1
+            buf_comm_real(ko_real+8*ko-7) = coord    (ilist,1)
+            buf_comm_real(ko_real+8*ko-6) = coord    (ilist,2)
+            buf_comm_real(ko_real+8*ko-5) = coord    (ilist,3)
+            buf_comm_real(ko_real+8*ko-4) = velocity (ilist,1)
+            buf_comm_real(ko_real+8*ko-3) = velocity (ilist,2)
+            buf_comm_real(ko_real+8*ko-2) = velocity (ilist,3)
+            buf_comm_real(ko_real+8*ko-1) = mass     (ilist  )
+            buf_comm_real(ko_real+8*ko  ) = charge   (ilist  )
+            buf_comm_int (ko_int +4*ko-3) = ip
+            buf_comm_int (ko_int +4*ko-2) = ig
+            buf_comm_int (ko_int +4*ko-1) = atmcls   (ilist  )
+            buf_comm_int (ko_int +4*ko-0) = id_l2g   (ilist  )
+
+          end if
+
+        else
+
+          n_stay = n_stay + 1
+          nocharge_stay(i) = nocharge_stay(i) + 1
+          buf_stay_real(n_stay_real+8*n_stay-7) = coord    (ilist,1)
+          buf_stay_real(n_stay_real+8*n_stay-6) = coord    (ilist,2)
+          buf_stay_real(n_stay_real+8*n_stay-5) = coord    (ilist,3)
+          buf_stay_real(n_stay_real+8*n_stay-4) = velocity (ilist,1)
+          buf_stay_real(n_stay_real+8*n_stay-3) = velocity (ilist,2)
+          buf_stay_real(n_stay_real+8*n_stay-2) = velocity (ilist,3)
+          buf_stay_real(n_stay_real+8*n_stay-1) = mass     (ilist  )
+          buf_stay_real(n_stay_real+8*n_stay  ) = charge   (ilist  )
+          buf_stay_int (n_stay_int +3*n_stay-2) = i
+          buf_stay_int (n_stay_int +3*n_stay-1) = atmcls   (ilist  )
+          buf_stay_int (n_stay_int +3*n_stay-0) = id_l2g   (ilist  )
+
+        end if
+
+      end if
+
+    end do
+
+    domain%n_stay2 = n_stay
+    domain%nocharge_move_domain = ki
+    domain%nocharge_comm_domain = ko
+
+    return
+
+  end subroutine update_outgoing_nocharge_martini
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_incoming_ptl_martini
+  !> @brief        check charge particles incoming to each cell (martini)
+  !! @authors      JJ
+  !! @param[inout] domain      : domain information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_incoming_ptl_martini(domain)
+
+    ! formal arguments
+    type(s_domain),      target, intent(inout) :: domain
+
+    ! local variables
+    integer                      :: i, j, k, ig, start_i, ilist, n_stay
+    integer                      :: n_stay_int, n_stay_real
+    integer                      :: charge_move_domain, nocharge_move_domain
+    integer                      :: id, omp_get_thread_num, ip, num
+
+    real(wip),        pointer    :: coord(:,:), velocity(:,:)
+    real(wp),         pointer    :: charge(:)
+    real(wip),        pointer    :: mass(:)
+    real(wip),        pointer    :: buf_move_real(:), buf_comm_real(:)
+    real(wip),        pointer    :: buf_stay_real(:)
+    integer,          pointer    :: ncel_local, ncel_bd 
+    integer,          pointer    :: natom(:), ncharge(:), start_atom(:)
+    integer,          pointer    :: atmcls(:), id_l2g(:), id_g2l(:)
+    integer,          pointer    :: cell_g2l(:)
+    integer,          pointer    :: charge_move(:), charge_stay(:)
+    integer,          pointer    :: nocharge_move(:), nocharge_stay(:)
+    integer,          pointer    :: charge_comm(:), nocharge_comm(:)
+    integer,          pointer    :: charge_comm1(:), nocharge_comm1(:)
+    integer,          pointer    :: buf_move_int(:), buf_comm_int(:)
+    integer,          pointer    :: buf_stay_int(:)
+
+    ncel_local             => domain%num_cell_local
+    natom                  => domain%num_atom
+    ncharge                => domain%num_charge
+    start_atom             => domain%start_atom
+    ncel_bd                => domain%num_cell_boundary
+    coord                  => domain%coord
+    velocity               => domain%velocity
+    charge                 => domain%charge
+    mass                   => domain%mass
+    atmcls                 => domain%atom_cls_no
+    id_l2g                 => domain%id_l2g
+    id_g2l                 => domain%id_g2l
+    cell_g2l               => domain%cell_g2l
+    charge_move            => domain%type1_move
+    charge_comm1           => domain%type1_comm_move
+    charge_comm            => domain%type1_comm
+    charge_stay            => domain%type1_stay
+    nocharge_move          => domain%type2_move
+    nocharge_comm1         => domain%type2_comm_move
+    nocharge_comm          => domain%type2_comm
+    nocharge_stay          => domain%type2_stay
+    buf_stay_int           => domain%buf_var0_stay_int
+    buf_stay_real          => domain%buf_var0_stay_real
+    buf_move_real          => domain%buf_var0_move_real
+    buf_move_int           => domain%buf_var0_move_int
+    buf_comm_real          => domain%buf_var0_comm_real
+    buf_comm_int           => domain%buf_var0_comm_int
+
+    charge_move_domain   = domain%charge_move_domain
+    nocharge_move_domain = domain%nocharge_move_domain
+    num = domain%num_comm_proc
+
+    do i = 1, ncel_local
+      ncharge(i) = charge_stay(i) + charge_move(i)
+      natom(i)   = ncharge(i) + nocharge_stay(i) + nocharge_move(i)
+    end do
+    start_atom(1:ncel_local+ncel_bd) = 0
+    k = 0
+    do i = 1, ncel_local-1
+      k = k + natom(i)
+      start_atom(i+1) = k
+    end do
+    k = k + natom(ncel_local)
+    domain%num_atom_domain = k 
+
+    !$omp parallel private(id)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    call get_para_range(1, k, nthread, id, domain%start_index(id), &
+                        domain%end_index(id))
+    !$omp end parallel
+
+#ifdef DEBUG
+    do i = 1, ncel_local
+      if (start_atom(i)+natom(i) > MaxAtom_domain) &
+        call error_msg('Debug: Update_Incoming_Atom> '// &
+                       'atom number exceeds MaxAtom_domain')
+    end do
+#endif
+
+    ! incoming charge
+    !
+!   !$omp parallel do private(n_stay, i, k, ilist, ig)
+    charge_stay(1:ncel_local) = 0
+    do n_stay = 1, domain%n_stay1
+      i = buf_stay_int(3*n_stay-2)
+      charge_stay(i) = charge_stay(i) + 1
+      ilist = charge_stay(i) + start_atom(i)
+      coord    (ilist,1)  = buf_stay_real(8*n_stay-7)
+      coord    (ilist,2)  = buf_stay_real(8*n_stay-6)
+      coord    (ilist,3)  = buf_stay_real(8*n_stay-5)
+      velocity (ilist,1)  = buf_stay_real(8*n_stay-4)
+      velocity (ilist,2)  = buf_stay_real(8*n_stay-3)
+      velocity (ilist,3)  = buf_stay_real(8*n_stay-2)
+      mass     (ilist  )  = buf_stay_real(8*n_stay-1)
+      charge   (ilist  )  = buf_stay_real(8*n_stay  )
+      atmcls   (ilist  )  = buf_stay_int (3*n_stay-1)
+      id_l2g   (ilist  )  = buf_stay_int (3*n_stay-0)
+      ig = id_l2g(ilist)
+      id_g2l(ig) = ilist
+    end do
+!   !$omp end parallel do
+
+    n_stay_real = domain%n_stay1 * 8
+    n_stay_int  = domain%n_stay1 * 3
+    nocharge_stay(1:ncel_local) = 0
+!   !$omp parallel do private(n_stay, i, k, ilist, ig)
+    do n_stay = 1, domain%n_stay2
+      i = buf_stay_int(n_stay_int+3*n_stay-2)
+      nocharge_stay(i) = nocharge_stay(i) + 1
+      ilist = ncharge(i) + nocharge_stay(i) + start_atom(i)
+      coord    (ilist,1)  = buf_stay_real(n_stay_real+8*n_stay-7)
+      coord    (ilist,2)  = buf_stay_real(n_stay_real+8*n_stay-6)
+      coord    (ilist,3)  = buf_stay_real(n_stay_real+8*n_stay-5)
+      velocity (ilist,1)  = buf_stay_real(n_stay_real+8*n_stay-4)
+      velocity (ilist,2)  = buf_stay_real(n_stay_real+8*n_stay-3)
+      velocity (ilist,3)  = buf_stay_real(n_stay_real+8*n_stay-2)
+      mass     (ilist  )  = buf_stay_real(n_stay_real+8*n_stay-1)
+      charge   (ilist  )  = buf_stay_real(n_stay_real+8*n_stay  )
+      atmcls   (ilist  )  = buf_stay_int (n_stay_int +3*n_stay-1)
+      id_l2g   (ilist  )  = buf_stay_int (n_stay_int +3*n_stay-0)
+      ig = id_l2g(ilist)
+      id_g2l(ig) = ilist
+    end do
+!   !$omp end parallel do
+
+    charge_comm1(1:ncel_local+ncel_bd) = 0
+    nocharge_comm1(1:ncel_local+ncel_bd) = 0
+
+    do k = 1, charge_move_domain
+      i = buf_move_int(3*k-2)
+      start_i = start_atom(i)
+      charge_comm1(i) = charge_comm1(i) + 1
+      ilist = charge_comm1(i) + charge_stay(i) + start_i
+      coord    (ilist,1)  = buf_move_real(8*k-7)
+      coord    (ilist,2)  = buf_move_real(8*k-6)
+      coord    (ilist,3)  = buf_move_real(8*k-5)
+      velocity (ilist,1)  = buf_move_real(8*k-4)
+      velocity (ilist,2)  = buf_move_real(8*k-3)
+      velocity (ilist,3)  = buf_move_real(8*k-2)
+      mass     (ilist  )  = buf_move_real(8*k-1)
+      charge   (ilist  )  = buf_move_real(8*k  )
+      atmcls   (ilist  )  = buf_move_int (3*k-1)
+      id_l2g   (ilist  )  = buf_move_int (3*k-0)
+      ig = id_l2g(ilist)
+      id_g2l(ig) = ilist
+    end do
+
+    do k = charge_move_domain+1, charge_move_domain+nocharge_move_domain
+      i = buf_move_int(3*k-2)
+      start_i = start_atom(i)
+      nocharge_comm1(i) = nocharge_comm1(i) + 1
+      ilist = nocharge_comm1(i) + nocharge_stay(i) + ncharge(i) + start_i
+      coord    (ilist,1)  = buf_move_real(8*k-7)
+      coord    (ilist,2)  = buf_move_real(8*k-6)
+      coord    (ilist,3)  = buf_move_real(8*k-5)
+      velocity (ilist,1)  = buf_move_real(8*k-4)
+      velocity (ilist,2)  = buf_move_real(8*k-3)
+      velocity (ilist,3)  = buf_move_real(8*k-2)
+      mass     (ilist  )  = buf_move_real(8*k-1)
+      charge   (ilist  )  = buf_move_real(8*k  )
+      atmcls   (ilist  )  = buf_move_int (3*k-1)
+      id_l2g   (ilist  )  = buf_move_int (3*k-0)
+      ig = id_l2g(ilist)
+      id_g2l(ig) = ilist
+    end do
+
+    j = 0
+    do ip = 1, num
+      do k = 1, charge_comm(ip)
+        j = j + 1
+        i = cell_g2l(buf_comm_int(3*j-2))
+        start_i = start_atom(i)
+        charge_comm1(i) = charge_comm1(i) + 1
+        ilist = charge_comm1(i) + charge_stay(i) + start_i
+        coord    (ilist,1)  = buf_comm_real(8*j-7)
+        coord    (ilist,2)  = buf_comm_real(8*j-6)
+        coord    (ilist,3)  = buf_comm_real(8*j-5)
+        velocity (ilist,1)  = buf_comm_real(8*j-4)
+        velocity (ilist,2)  = buf_comm_real(8*j-3)
+        velocity (ilist,3)  = buf_comm_real(8*j-2)
+        mass     (ilist  )  = buf_comm_real(8*j-1)
+        charge   (ilist  )  = buf_comm_real(8*j  )
+        atmcls   (ilist  )  = buf_comm_int (3*j-1)
+        id_l2g   (ilist  )  = buf_comm_int (3*j-0)
+        ig = id_l2g(ilist)
+        id_g2l(ig) = ilist
+      end do
+  
+      do k = charge_comm(ip)+1,charge_comm(ip)+nocharge_comm(ip)
+        j = j + 1 
+        i = cell_g2l(buf_comm_int(3*j-2))
+        start_i = start_atom(i)
+        nocharge_comm1(i) = nocharge_comm1(i) + 1
+        ilist = nocharge_comm1(i) + nocharge_stay(i) + ncharge(i) + start_i
+        coord    (ilist,1)  = buf_comm_real(8*j-7)    
+        coord    (ilist,2)  = buf_comm_real(8*j-6)    
+        coord    (ilist,3)  = buf_comm_real(8*j-5)    
+        velocity (ilist,1)  = buf_comm_real(8*j-4)
+        velocity (ilist,2)  = buf_comm_real(8*j-3)
+        velocity (ilist,3)  = buf_comm_real(8*j-2)
+        mass     (ilist  )  = buf_comm_real(8*j-1)
+        charge   (ilist  )  = buf_comm_real(8*j  )
+        atmcls   (ilist  )  = buf_comm_int (3*j-1)
+        id_l2g   (ilist  )  = buf_comm_int (3*j-0)
+        ig = id_l2g(ilist)
+        id_g2l(ig) = ilist
+      end do
+    end do
+
+    return
+
+  end subroutine update_incoming_ptl_martini
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

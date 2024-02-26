@@ -65,9 +65,11 @@ module cg_energy_str_mod
   ! parameters
   integer,      public, parameter :: ElectrostaticCutoff = 1
   integer,      public, parameter :: ElectrostaticPME    = 2
+  integer,      public, parameter :: ElectrostaticRF     = 3
 
-  character(*), public, parameter :: ElectrostaticTypes(2) = (/'CUTOFF', &
-                                                               'PME   '/)
+  character(*), public, parameter :: ElectrostaticTypes(3) = (/'CUTOFF', &
+                                                               'PME   ', &
+                                                               'RF    '/)
 
   integer,      public, parameter :: StructureCheckNone    = 1
   integer,      public, parameter :: StructureCheckFirst   = 2

@@ -24,6 +24,7 @@ module cg_pairlist_str_mod
   ! structures
   type, public :: s_pairlist
     real(wp)                        :: pairlistdist
+    real(wp)                        :: cg_pairlistdist_vdw
     real(wp)                        :: cg_pairlistdist_ele
     real(wp)                        :: cg_pairlistdist_126
     real(wp)                        :: cg_pairlistdist_PWMcos
@@ -210,7 +211,7 @@ contains
       if (.not. allocated(pairlist%num_cg_ele_calc))                 &
         allocate(pairlist%num_cg_ele_calc(var_size),                 &
                  stat = alloc_stat)
-      pairlist%num_cg_ele_calc(1:var_size)  = 0
+      pairlist%num_cg_ele_calc(1:var_size) = 0
 
     case (PairListCGDNAExvNum)
 

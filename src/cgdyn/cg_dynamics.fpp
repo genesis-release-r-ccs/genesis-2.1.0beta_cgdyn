@@ -61,6 +61,7 @@ module cg_dynamics_mod
     integer          :: iseed            =     -1
     real(wp)         :: initial_time     =    0.0_wp
 
+    logical          :: gen_velocity     =  .true.
     ! respa
     integer          :: thermo_period    =      1
     integer          :: baro_period      =      1
@@ -219,6 +220,8 @@ contains
                                dyn_info%baro_period)
     call read_ctrlfile_logical(handle, Section, 'verbose',        &
                                dyn_info%verbose)
+    call read_ctrlfile_logical(handle, Section, 'gen_velocity',   &
+                               dyn_info%gen_velocity)
     call read_ctrlfile_logical(handle, Section, 'target_md',     &
                                dyn_info%target_md)
     call read_ctrlfile_logical(handle, Section, 'steered_md',    &
@@ -266,6 +269,7 @@ contains
       else
         write(MsgOut,'(A)') '  annealing       =         no'
       end if
+      if (dyn_info%gen_velocity) write(MsgOut,'(A)') '  gen_velocity    =        yes' 
 
       ! respa
       !
@@ -415,7 +419,7 @@ contains
     type(s_dynamics),        intent(inout) :: dynamics
 
     ! local variables
-    integer                  :: i
+    integer                  :: i, id, omp_get_thread_num
     integer                  :: ierror, iseed_init_vel, iseed
 
 
@@ -446,6 +450,7 @@ contains
     dynamics%steered_md        = dyn_info%steered_md
     dynamics%initial_rmsd      = dyn_info%initial_rmsd
     dynamics%final_rmsd        = dyn_info%final_rmsd
+    dynamics%gen_velocity      = dyn_info%gen_velocity
 
     iseed          = dyn_info%iseed
     iseed_init_vel = iseed
@@ -459,7 +464,14 @@ contains
       iseed_init_vel = iseed
       iseed = iseed + my_country_rank
     end if
-    dynamics%iseed = iseed + 1000 * my_country_no
+    !$omp parallel private(id)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    dynamics%iseed_omp(id+1) = iseed + id*nthread + 1000 * my_country_no
+    !$omp end parallel
 
     dynamics%iseed_init_velocity = iseed_init_vel + 1000 * my_country_no
 
@@ -517,7 +529,7 @@ contains
 
     ! setup random system
     !
-    call random_init(dynamics%iseed)
+    call random_init_omp(dynamics%iseed_omp)
 
     return
 

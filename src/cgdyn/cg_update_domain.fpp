@@ -258,14 +258,27 @@ contains
 
     call timer(TimerMigration, TimerOn)
     call timer(TimerMptl, TimerOn)
-    call update_outgoing_charge(boundary, domain)
-    call update_outgoing_nocharge(boundary, domain)
+    if (enefunc%forcefield /= ForcefieldGroMartini) then
+      call update_outgoing_charge(boundary, domain)
+      call update_outgoing_nocharge(boundary, domain)
+    else
+      call update_outgoing_charge_martini(boundary, domain)
+      call update_outgoing_nocharge_martini(boundary, domain)
+    end if
     call timer(TimerMptl, TimerOff)
     call timer(TimerComm3, TimerOn)
-    call communicate_ptl(domain, comm)
+    if (enefunc%forcefield /= ForcefieldGroMartini) then
+      call communicate_ptl(domain, comm)
+    else
+      call communicate_ptl_martini(domain, comm)
+    end if
     call timer(TimerComm3, TimerOff)
     call timer(TimerMptl, TimerOn)
-    call update_incoming_ptl(domain)
+    if (enefunc%forcefield /= ForcefieldGroMartini) then
+      call update_incoming_ptl(domain)
+    else
+      call update_incoming_ptl_martini(domain)
+    end if
     call timer(TimerMptl, TimerOff)
 
     call update_cell_size(domain, comm)
@@ -338,6 +351,18 @@ contains
       if (enefunc%cg_pwmcosns_calc) &
         call update_pairlist_cg_pwmcosns(coord_pbc, enefunc, domain, pairlist)
 
+    else if (enefunc%forcefield == ForcefieldGroMartini) then
+
+      !$omp parallel do private(i)
+      do i = 1, domain%num_atom_domain + domain%num_atom_boundary
+        coord_pbc(i,1) = real(coord(i,1),wp) + trans(i,1)
+        coord_pbc(i,2) = real(coord(i,2),wp) + trans(i,2)
+        coord_pbc(i,3) = real(coord(i,3),wp) + trans(i,3)
+      end do
+      !$omp end parallel do
+      call update_alloc_size_pairlist(enefunc, pairlist)
+      call update_pairlist_martini(coord_pbc, enefunc, domain, pairlist)
+   
     end if
 
     call timer(TimerPairList, TimerOff)
@@ -507,6 +532,13 @@ contains
       num = MaxDihe
       call alloc_enefunc(enefunc, EneFuncDihe, num, 1)
       call copy_dihe_information(2, domain, enefunc)
+    end if
+
+    if (enefunc%forcefield == ForcefieldGroMartini) then
+      if (MaxExcl < MaxBond+MaxAngl+MaxDihe) then
+        MaxExcl = MaxBond + MaxAngl + MaxDihe
+        call alloc_enefunc(enefunc, EneFuncExcl, MaxExcl, 1)
+      end if
     end if
 
     num = enefunc%num_stack_domain

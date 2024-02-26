@@ -35,6 +35,7 @@ module cg_communicate_mod
   public  :: communicate_coor
   public  :: communicate_force
   public  :: communicate_ptl
+  public  :: communicate_ptl_martini
   public  :: update_cell_size
   public  :: update_cell_boundary
   public  :: communicate_bond
@@ -747,7 +748,7 @@ contains
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    communicate_ptl
-  !> @brief        Pack the incoming particles data of boundary cell (z)
+  !> @brief        Particle migration between processes
   !! @authors      JJ
   !! @param[inout] domain : domain information
   !! @param[inout] comm   : communication information
@@ -935,6 +936,198 @@ contains
     return
 
   end subroutine communicate_ptl
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    communicate_ptl_martini
+  !> @brief        Particle migration between processes
+  !! @authors      JJ
+  !! @param[inout] domain : domain information
+  !! @param[inout] comm   : communication information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine communicate_ptl_martini(domain, comm)
+
+    ! formal arguments
+    type(s_domain),  target, intent(inout) :: domain
+    type(s_comm),    target, intent(inout) :: comm
+
+    ! local variable
+    integer                  :: i, j, k, ic, list, iproc, ip
+    integer                  :: k1, j1
+    integer                  :: start_iproc(2)
+#ifdef HAVE_MPI_GENESIS
+    integer                  :: istatus(mpi_status_size)
+#endif
+
+    real(wip),       pointer :: buf_send(:), buf_recv(:)
+    real(wip),       pointer :: ptl_comm_real(:)
+    integer,         pointer :: num
+    integer,         pointer :: send_size(:,:), recv_size(:,:)
+    integer,         pointer :: send1(:,:), recv1(:,:)
+    integer,         pointer :: irequest(:,:)
+    integer,         pointer :: iproc_proc(:)
+    integer,         pointer :: charge_move(:), nocharge_move(:)
+    integer,         pointer :: charge_comm(:), nocharge_comm(:)
+    integer,         pointer :: charge_comm_move(:), nocharge_comm_move(:)
+    integer,         pointer :: int_send(:), int_recv(:)
+    integer,         pointer :: cell_g2l(:)
+    integer,         pointer :: ptl_comm_int(:)
+
+    num                => domain%num_comm_proc
+    iproc_proc         => domain%iproc
+    cell_g2l           => domain%cell_g2l
+    charge_move        => domain%type1_move
+    nocharge_move      => domain%type2_move
+    charge_comm        => domain%type1_comm
+    nocharge_comm      => domain%type2_comm
+    charge_comm_move   => domain%type1_comm_move
+    nocharge_comm_move => domain%type2_comm_move
+    ptl_comm_real      => domain%buf_var0_comm_real
+    ptl_comm_int       => domain%buf_var0_comm_int
+
+    send_size          => comm%send_size
+    recv_size          => comm%recv_size
+    send1              => comm%send_address
+    recv1              => comm%recv_address
+    irequest           => comm%irequest
+    buf_send           => comm%buf_send 
+    buf_recv           => comm%buf_recv 
+    int_recv           => comm%int_recv 
+    int_send           => comm%int_send 
+
+    ! Pack outgoing data 
+    !
+    send1(1:2,1) = 0
+    do iproc = 1, num
+      start_iproc(1:2) = send1(1:2,iproc)
+      k = 2 + 3*charge_comm(iproc) + 3*nocharge_comm(iproc)
+      j =     8*charge_comm(iproc) + 8*nocharge_comm(iproc)
+      int_send(1+start_iproc(1)) = charge_comm(iproc)
+      int_send(2+start_iproc(1)) = nocharge_comm(iproc)
+      send_size(1,iproc) = k
+      send_size(2,iproc) = j
+      send1(1:2,iproc+1) = send1(1:2,iproc) + send_size(1:2,iproc)
+    end do
+
+    charge_comm(1:num) = 0
+    nocharge_comm(1:num) = 0
+    do i = 1, domain%charge_comm_domain
+      iproc = ptl_comm_int(4*i-3)
+      start_iproc(1:2) = send1(1:2,iproc)
+      charge_comm(iproc) = charge_comm(iproc) + 1
+      k1 = start_iproc(1) + 2 + 3*(charge_comm(iproc)-1)
+      int_send(k1+1:k1+3) = ptl_comm_int(4*i-2:4*i)
+      j1 = start_iproc(2) + 8*(charge_comm(iproc)-1)
+      buf_send(j1+1:j1+8) = ptl_comm_real(8*i-7:8*i)
+    end do
+    do i = domain%charge_comm_domain+1, domain%charge_comm_domain+domain%nocharge_comm_domain
+      iproc = ptl_comm_int(4*i-3)
+      start_iproc(1:2) = send1(1:2,iproc)
+      nocharge_comm(iproc) = nocharge_comm(iproc) + 1
+      k1 = start_iproc(1) + 2 + 3*(charge_comm(iproc)+nocharge_comm(iproc)-1)
+      int_send(k1+1:k1+3) = ptl_comm_int(4*i-2:4*i)
+      j1 = start_iproc(2) + 8*(charge_comm(iproc)+nocharge_comm(iproc)-1)
+      buf_send(j1+1:j1+8) = ptl_comm_real(8*i-7:8*i)
+    end do
+
+#ifdef HAVE_MPI_GENESIS
+    ! send the size of data
+    !
+    do iproc = 1, num
+      ip = iproc_proc(iproc)
+      call mpi_irecv(recv_size(1,iproc), 2, mpi_integer, ip,           &
+                     (my_city_rank+1)*nproc_city+ip, mpi_comm_city,    &
+                     irequest(1,iproc), ierror)
+      call mpi_isend(send_size(1,iproc), 2, mpi_integer, ip,           &
+                     (ip+1)*nproc_city+my_city_rank, mpi_comm_city,    &
+                     irequest(2,iproc), ierror)
+    end do
+    do iproc = 1, num
+      call mpi_wait(irequest(1,iproc), istatus, ierror)
+      call mpi_wait(irequest(2,iproc), istatus, ierror)
+    end do
+
+    recv1(1:2,1) = 0
+    start_iproc(1:2) = 0
+    do iproc = 2, num
+      start_iproc(1:2) = start_iproc(1:2) + recv_size(1:2,iproc-1)
+      recv1(1:2,iproc) = start_iproc(1:2)
+    end do
+
+    ! send the data (integer values)
+    !
+    do iproc = 1, num
+      ip = iproc_proc(iproc)
+      call mpi_irecv(int_recv(recv1(1,iproc)+1), recv_size(1,iproc),  &
+                     mpi_integer, ip, (my_city_rank+1)*nproc_city+ip, &
+                     mpi_comm_city, irequest(1,iproc), ierror)
+      call mpi_isend(int_send(send1(1,iproc)+1), send_size(1,iproc),  &
+                     mpi_integer, ip, (ip+1)*nproc_city+my_city_rank, &
+                     mpi_comm_city, irequest(2,iproc), ierror)
+    end do
+
+    do iproc = 1, num
+      call mpi_wait(irequest(1,iproc), istatus, ierror)
+      call mpi_wait(irequest(2,iproc), istatus, ierror)
+    end do
+
+    do iproc = 1, num
+      ip = iproc_proc(iproc)
+      call mpi_irecv(buf_recv(recv1(2,iproc)+1), recv_size(2,iproc),  &
+                     mpi_wip_real, ip, (my_city_rank+1)*nproc_city+ip,&
+                     mpi_comm_city, irequest(1,iproc), ierror)
+      call mpi_isend(buf_send(send1(2,iproc)+1), send_size(2,iproc),  &
+                     mpi_wip_real, ip, (ip+1)*nproc_city+my_city_rank,&
+                     mpi_comm_city, irequest(2,iproc), ierror)
+    end do
+    do iproc = 1, num
+      call mpi_wait(irequest(1,iproc), istatus, ierror)
+      call mpi_wait(irequest(2,iproc), istatus, ierror)
+    end do
+#endif
+
+    ! get the imcoming data
+    !
+    charge_comm(1:num) = 0
+    nocharge_comm(1:num) = 0
+    list = 0
+
+    do iproc = 1, num
+
+      start_iproc(1:2) = recv1(1:2,iproc)
+      charge_comm(iproc) = int_recv(1+start_iproc(1))
+      nocharge_comm(iproc) = int_recv(2+start_iproc(1))
+
+      k = 2
+      j = 0
+ 
+      do i = 1, charge_comm(iproc)
+        list = list + 1
+        k1 = start_iproc(1) + 2 + 3*(i-1)
+        ptl_comm_int (3*list-2:3*list) = int_recv(k1+1:k1+3) 
+        ic = cell_g2l(ptl_comm_int(3*list-2))
+        charge_move(ic) = charge_move(ic) + 1
+        j1 = start_iproc(2) + 8*(i-1)
+        ptl_comm_real(8*list-7:8*list) = buf_recv(j1+1:j1+8)
+      end do
+      do i = charge_comm(iproc)+1, charge_comm(iproc)+nocharge_comm(iproc)
+        list = list + 1
+        k1 = start_iproc(1) + 2 + 3*(i-1)
+        ptl_comm_int (3*list-2:3*list) = int_recv(k1+1:k1+3) 
+        ic = cell_g2l(ptl_comm_int(3*list-2))
+        nocharge_move(ic) = nocharge_move(ic) + 1
+        j1 = start_iproc(2) + 8*(i-1)
+        ptl_comm_real(8*list-7:8*list) = buf_recv(j1+1:j1+8)
+      end do
+     
+    end do
+    domain%charge_comm_domain = list
+ 
+    return
+
+  end subroutine communicate_ptl_martini
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
@@ -1243,99 +1436,115 @@ contains
 
     !$omp end parallel
 
-    num_kh = 0
-    num_dna = 0
-    num_base = 0
-    num_idr_kh = 0
-    num_idr_hps = 0
-    do i = 1, ncell_local+ncell_bd
-      kx = 0
-      jx = 0
-      start_i = start_atom(i)
-      do ix = 1, natom(i)
-        ixx = ix + start_i
-        cg_pro_use_KH(ixx) = 0
-        cg_IDR_KH(ixx) = 0
-        cg_IDR_HPS(ixx) = 0
-        if (enefunc%cg_ele_calc) cg_elec_list_inv(ixx) = 0
-        if (enefunc%cg_DNA_exv_calc) cg_dna_list_inv(ixx) = 0
-        if (enefunc%cg_DNA_base_pair_calc) cg_base_list_inv(ixx) = 0
-        if (enefunc%cg_KH_calc) cg_kh_list_inv(ixx) = 0
-        if (enefunc%cg_IDR_KH_calc) cg_idr_kh_list_inv(ixx) = 0
-        if (enefunc%cg_IDR_HPS_calc) cg_idr_hps_list_inv(ixx) = 0
-        k = atom_type(ixx)
-        if (k <= NABaseTypeDBMax .or. k == NABaseTypeDP .or. &
-            k == NABaseTypeDS) then
-          num_dna = num_dna + 1
-          cg_dna_list(num_dna) = ixx
-          cg_dna_list_inv(ixx) = num_dna
-          if (k <= NABaseTypeDBMax) then
-            num_base = num_base + 1
-            cg_base_list(num_base) = ixx
-            cg_base_list_inv(ixx) = num_base
-            dna_check(ixx) = 1
-            kx = kx + 1
-            base_list(kx+start_i) = ixx
-          else if (k == NABaseTypeDP) then
-            dna_check(ix+start_i) = 2
-            jx = jx + 1
-            phos_list(jx+start_i) = ix + start_i
-          else if (k == NABaseTypeDS) then
-            dna_check(ix+start_i) = 3
+    if (enefunc%forcefield == ForcefieldResidCG) then
+
+      num_kh = 0
+      num_dna = 0
+      num_base = 0
+      num_idr_kh = 0
+      num_idr_hps = 0
+      do i = 1, ncell_local+ncell_bd
+        kx = 0
+        jx = 0
+        start_i = start_atom(i)
+        do ix = 1, natom(i)
+          ixx = ix + start_i
+          cg_pro_use_KH(ixx) = 0
+          cg_IDR_KH(ixx) = 0
+          cg_IDR_HPS(ixx) = 0
+          if (enefunc%cg_ele_calc) cg_elec_list_inv(ixx) = 0
+          if (enefunc%cg_DNA_exv_calc) cg_dna_list_inv(ixx) = 0
+          if (enefunc%cg_DNA_base_pair_calc) cg_base_list_inv(ixx) = 0
+          if (enefunc%cg_KH_calc) cg_kh_list_inv(ixx) = 0
+          if (enefunc%cg_IDR_KH_calc) cg_idr_kh_list_inv(ixx) = 0
+          if (enefunc%cg_IDR_HPS_calc) cg_idr_hps_list_inv(ixx) = 0
+          k = atom_type(ixx)
+          if (k <= NABaseTypeDBMax .or. k == NABaseTypeDP .or. &
+              k == NABaseTypeDS) then
+            num_dna = num_dna + 1
+            cg_dna_list(num_dna) = ixx
+            cg_dna_list_inv(ixx) = num_dna
+            if (k <= NABaseTypeDBMax) then
+              num_base = num_base + 1
+              cg_base_list(num_base) = ixx
+              cg_base_list_inv(ixx) = num_base
+              dna_check(ixx) = 1
+              kx = kx + 1
+              base_list(kx+start_i) = ixx
+            else if (k == NABaseTypeDP) then
+              dna_check(ix+start_i) = 2
+              jx = jx + 1
+              phos_list(jx+start_i) = ix + start_i
+            else if (k == NABaseTypeDS) then
+              dna_check(ix+start_i) = 3
+            end if
+          else
+            dna_check(ix+start_i) = 0
+            if (atom_type(ixx) == NABaseTypeKH .or.       &
+                atom_type(ixx) == NABaseTypeBothKH) then
+              cg_pro_use_KH(ixx) = 1
+              num_kh = num_kh + 1
+              cg_kh_list(num_kh) = ixx
+              cg_kh_list_inv(ixx) = num_kh
+            end if
+            if (atom_type(ixx) == NABaseTypeIDRKH .or.    &
+                atom_type(ixx) == NABaseTypeBothKH) then
+              cg_IDR_KH(ixx) = 1
+              num_idr_kh = num_idr_kh + 1
+              cg_idr_kh_list(num_idr_kh) = ixx
+              cg_idr_kh_list_inv(ixx) = num_idr_kh
+            end if
+            if (atom_type(ix+start_i) == NABaseTypeIDRHPS) then
+              cg_IDR_HPS(ix+start_i) = 1
+              num_idr_hps = num_idr_hps + 1
+              cg_idr_hps_list(num_idr_hps) = ixx
+              cg_idr_hps_list_inv(ixx) = num_idr_hps
+            end if
           end if
-        else
-          dna_check(ix+start_i) = 0
-          if (atom_type(ixx) == NABaseTypeKH .or.       &
-              atom_type(ixx) == NABaseTypeBothKH) then
-            cg_pro_use_KH(ixx) = 1
-            num_kh = num_kh + 1
-            cg_kh_list(num_kh) = ixx
-            cg_kh_list_inv(ixx) = num_kh
-          end if
-          if (atom_type(ixx) == NABaseTypeIDRKH .or.    &
-              atom_type(ixx) == NABaseTypeBothKH) then
-            cg_IDR_KH(ixx) = 1
-            num_idr_kh = num_idr_kh + 1
-            cg_idr_kh_list(num_idr_kh) = ixx
-            cg_idr_kh_list_inv(ixx) = num_idr_kh
-          end if
-          if (atom_type(ix+start_i) == NABaseTypeIDRHPS) then
-            cg_IDR_HPS(ix+start_i) = 1
-            num_idr_hps = num_idr_hps + 1
-            cg_idr_hps_list(num_idr_hps) = ixx
-            cg_idr_hps_list_inv(ixx) = num_idr_hps
-          end if
-        end if
+        end do
+        nbase(i) = kx
+        nphos(i) = jx
       end do
-      nbase(i) = kx
-      nphos(i) = jx
-    end do
-    enefunc%num_cg_DNA = num_dna
-    enefunc%num_cg_base = num_base
-    enefunc%num_cg_KH = num_kh
-    enefunc%num_cg_IDR_KH = num_idr_kh
-    enefunc%num_cg_IDR_HPS = num_idr_hps
+      enefunc%num_cg_DNA = num_dna
+      enefunc%num_cg_base = num_base
+      enefunc%num_cg_KH = num_kh
+      enefunc%num_cg_IDR_KH = num_idr_kh
+      enefunc%num_cg_IDR_HPS = num_idr_hps
+
+    end if
 
     ! molecule type, coordinate, charge in elec cell
     !
     num_elec = 0
-    do i = 1, ncell_local+ncell_bd
-      start_i = start_atom(i)
-      do ix = 1, ncharge(i)
-        ixx = ix + start_i
-        base_type = atom_type(ixx)
-        if (base_type == NABaseTypeDP) then
-          charge_type(ixx) = 1
-        else if (base_type > NABaseTypeNAMax) then
-          charge_type(ixx) = 2
-        else
-          charge_type(ixx) = 3
-        end if
-        num_elec = num_elec + 1
-        cg_elec_list(num_elec) = ixx
-        cg_elec_list_inv(ixx) = num_elec
+    if (enefunc%forcefield /= ForcefieldGroMartini) then
+      do i = 1, ncell_local+ncell_bd
+        start_i = start_atom(i)
+        do ix = 1, ncharge(i)
+          ixx = ix + start_i
+          base_type = atom_type(ixx)
+          if (base_type == NABaseTypeDP) then
+            charge_type(ixx) = 1
+          else if (base_type > NABaseTypeNAMax) then
+            charge_type(ixx) = 2
+          else
+            charge_type(ixx) = 3
+          end if
+          num_elec = num_elec + 1
+          cg_elec_list(num_elec) = ixx
+          cg_elec_list_inv(ixx) = num_elec
+        end do
       end do
-    end do
+    else
+      do i = 1, ncell_local+ncell_bd
+        start_i = start_atom(i)
+        do ix = 1, ncharge(i)
+          ixx = ix + start_i
+          num_elec = num_elec + 1
+          cg_elec_list(num_elec) = ixx
+          cg_elec_list_inv(ixx) = num_elec
+        end do
+      end do
+    end if  
     enefunc%num_cg_elec = num_elec
 
     return

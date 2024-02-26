@@ -38,6 +38,7 @@ module cg_dynamics_str_mod
     integer             :: lbupdate_period
     integer             :: elec_long_period
     integer             :: iseed
+    integer             :: iseed_omp(48)
     integer             :: iseed_init_velocity
     logical             :: iseed_read
     real(dp)            :: initial_time
@@ -51,6 +52,7 @@ module cg_dynamics_str_mod
     integer             :: thermo_period
     integer             :: baro_period
     logical             :: verbose
+    logical             :: gen_velocity
     logical             :: target_md
     logical             :: steered_md
     real(wp)            :: initial_rmsd
@@ -115,6 +117,7 @@ contains
     dynamics%istart_step          = 0
     dynamics%iend_step            = 0
     dynamics%verbose              = .false.
+    dynamics%verbose              = .true.
     dynamics%iseed_read           = .false.
 
     return

@@ -21,6 +21,7 @@ module cg_energy_mod
   use cg_energy_bonds_mod
   use cg_energy_go_mod
   use cg_energy_nonlocal_mod
+  use cg_energy_martini_mod
   use cg_energy_restraints_mod
   use cg_boundary_str_mod
   use cg_pairlist_str_mod
@@ -50,11 +51,16 @@ module cg_energy_mod
     integer               :: forcefield       = ForcefieldRESIDCG
     integer               :: electrostatic    = ElectrostaticCUTOFF
     real(wp)              :: dielec_const     = 1.0_wp
+    real(wp)              :: epsilon_rf       = 0.0_wp
     integer               :: output_style     = OutputStyleGENESIS
     logical               :: user_def_table   = .false.
     logical               :: assign_force_max = .false.
     real(wp)              :: upper_force_value= 100.0_wp
 
+    real(wp)              :: cg_cellsize_min              = 12.0_wp
+    real(wp)              :: cg_cutoffdist_vdw            = 12.0_wp
+    real(wp)              :: cg_switchdist_vdw            = 10.0_wp
+    real(wp)              :: cg_pairlistdist_vdw          = 13.5_wp
     real(wp)              :: cg_cutoffdist_ele            = 52.0_wp
     real(wp)              :: cg_cutoffdist_126            = 39.0_wp
     real(wp)              :: cg_cutoffdist_DNAbp          = 18.0_wp
@@ -172,19 +178,29 @@ contains
                                ene_info%electrostatic, ElectrostaticTypes)
     call read_ctrlfile_real   (handle, Section, 'dielec_const',  &
                                ene_info%dielec_const)
+    call read_ctrlfile_real   (handle, Section, 'epsilon_rf',    &
+                               ene_info%epsilon_rf)
     call read_ctrlfile_type   (handle, Section, 'output_style',  &
                                ene_info%output_style, OutputStyleTypes)
     call read_ctrlfile_logical(handle, Section, 'user_def_table',   &
                                ene_info%user_def_table)
 
+    call read_ctrlfile_real   (handle, Section, 'cg_cellsize_min',        &
+        ene_info%cg_cellsize_min)
     call read_ctrlfile_real   (handle, Section, 'cg_cutoffdist_ele',      &
         ene_info%cg_cutoffdist_ele)
+    call read_ctrlfile_real   (handle, Section, 'cg_cutoffdist_vdw',      &
+        ene_info%cg_cutoffdist_vdw)
+    call read_ctrlfile_real   (handle, Section, 'cg_switchdist_vdw',      &
+        ene_info%cg_switchdist_vdw)
     call read_ctrlfile_real   (handle, Section, 'cg_cutoffdist_126',      &
         ene_info%cg_cutoffdist_126)
     call read_ctrlfile_real   (handle, Section, 'cg_cutoffdist_DNAbp',    &
         ene_info%cg_cutoffdist_DNAbp)
     call read_ctrlfile_real   (handle, Section, 'cg_pairlistdist_ele',    &
         ene_info%cg_pairlistdist_ele)
+    call read_ctrlfile_real   (handle, Section, 'cg_pairlistdist_vdw',    &
+        ene_info%cg_pairlistdist_vdw)
     call read_ctrlfile_real   (handle, Section, 'cg_pairlistdist_126',    &
         ene_info%cg_pairlistdist_126)
     call read_ctrlfile_real   (handle, Section, 'cg_pairlistdist_PWMcos', &
@@ -220,12 +236,6 @@ contains
         ene_info%upper_force_value)
 
     call end_ctrlfile_section(handle)
-
-    ! check table
-    !
-    if (ene_info%forcefield /= ForcefieldRESIDCG) &
-      call error_msg( &
-         'Read_Ctrl_Energy> CGDYN only allows RESIDCG as a forcefield now')
 
     ! write parameters to MsgOut
     !
@@ -306,6 +316,12 @@ contains
     case (ForcefieldAAGO, ForcefieldCAGO, ForcefieldRESIDCG)
 
       call compute_energy_go(domain, enefunc, pairlist, boundary, coord,       &
+                             npt, reduce, nonb_ene, dynvars%energy, coord_pbc, &
+                             force, force_omp, virial, virial_ext)
+
+    case (ForceFieldGROMartini)
+
+      call compute_energy_martini(domain, enefunc, pairlist, boundary, coord,  &
                              npt, reduce, nonb_ene, dynvars%energy, coord_pbc, &
                              force, force_omp, virial, virial_ext)
 
@@ -786,6 +802,249 @@ contains
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
+  !  Subroutine    compute_energy_martini
+  !> @brief        compute Martini potential energy
+  !! @authors      JJ
+  !! @param[in]    domain        : domain information
+  !! @param[in]    enefunc       : potential energy functions information
+  !! @param[in]    pairlist      : pair list information
+  !! @param[in]    boundary      : boundary information
+  !! @param[in]    coord         : coordinates of target systems
+  !! @param[in]    reduce        : flag for reduce energy and virial
+  !! @param[in]    nonb_ene      : flag for calculate nonbonded energy
+  !! @param[inout] energy        : energy information
+  !! @param[inout] force         : forces of target systems
+  !! @param[inout] virial        : virial term of target systems
+  !! @param[inout] virial_ext    : extern virial term of target systems
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine compute_energy_martini(domain, enefunc, pairlist, boundary,   &
+                               coord, npt, reduce, nonb_ene, energy,       &
+                               coord_pbc, force, force_omp, virial, virial_ext)
+
+    ! formal arguments
+    type(s_domain),  target, intent(in)    :: domain
+    type(s_enefunc),         intent(inout) :: enefunc
+    type(s_pairlist),        intent(in)    :: pairlist
+    type(s_boundary),        intent(in)    :: boundary
+    real(wip),               intent(in)    :: coord(:,:)
+    logical,                 intent(in)    :: npt
+    logical,                 intent(in)    :: reduce
+    logical,                 intent(in)    :: nonb_ene
+    type(s_energy),          intent(inout) :: energy
+    real(wp),                intent(inout) :: coord_pbc(:,:)
+    real(wip),               intent(inout) :: force(:,:)
+    real(wp),                intent(inout) :: force_omp(:,:,:)
+    real(dp),                intent(inout) :: virial(3,3)
+    real(dp),                intent(inout) :: virial_ext(3,3)
+
+    ! local variable
+    integer,         pointer :: num_atom(:)
+    real(wp),        pointer :: trans(:,:)
+    real(dp)                 :: virial_omp(3,3,nthread)
+    real(dp)                 :: virial_ext_omp(3,3,nthread)
+    real(dp)                 :: elec_omp    (nthread)
+    real(dp)                 :: ebond_omp   (nthread)
+    real(dp)                 :: eangle_omp  (nthread)
+    real(dp)                 :: edihed_omp  (nthread)
+    real(dp)                 :: eimprop_omp (nthread)
+    real(dp)                 :: eposi_omp   (nthread)
+    real(dp)                 :: evdw_omp    (nthread)
+    real(wp)                 :: force_tmp(1:3)
+    integer                  :: ncell, natom, id, i, ix, start_i
+    integer                  :: ilist
+    integer                  :: omp_get_thread_num
+
+    ! pointer
+    !
+    num_atom  => domain%num_atom
+    trans     => domain%trans_vec
+
+    ! number of cells and atoms
+    !
+    ncell = domain%num_cell_local + domain%num_cell_boundary
+    natom = domain%max_num_atom
+
+    ! initialization of energy and forces
+    !
+    call init_energy(energy)
+
+    virial     (1:3,1:3)               = 0.0_dp
+    virial_ext (1:3,1:3)               = 0.0_dp
+
+    virial_omp    (1:3,1:3,1:nthread) = 0.0_dp
+    virial_ext_omp(1:3,1:3,1:nthread) = 0.0_dp
+    ebond_omp     (1:nthread)         = 0.0_dp
+    eangle_omp    (1:nthread)         = 0.0_dp
+    edihed_omp    (1:nthread)         = 0.0_dp
+    eposi_omp     (1:nthread)         = 0.0_dp
+    elec_omp      (1:nthread)         = 0.0_dp
+    evdw_omp      (1:nthread)         = 0.0_dp
+ 
+    !$omp parallel private(id, i, start_i, ix, ilist)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    do i = 1, domain%num_atom_domain+domain%num_atom_boundary
+      force_omp(i,1,id+1) = 0.0_wp
+      force_omp(i,2,id+1) = 0.0_wp
+      force_omp(i,3,id+1) = 0.0_wp
+    end do
+
+    do i = id+1, domain%num_atom_domain+domain%num_atom_boundary, nthread
+      force(i,1) = 0.0_wip
+      force(i,2) = 0.0_wip
+      force(i,3) = 0.0_wip
+    end do
+
+    ! pbc coordinates
+    !
+    if (boundary%type == BoundaryTypePBC) then
+      do i = id+1, domain%num_atom_domain+domain%num_atom_boundary, nthread
+        coord_pbc(i,1) = real(coord(i,1),wp) + trans(i,1)
+        coord_pbc(i,2) = real(coord(i,2),wp) + trans(i,2)
+        coord_pbc(i,3) = real(coord(i,3),wp) + trans(i,3)
+      end do
+    else if (boundary%type == boundaryTypeNOBC) then
+      do i = id+1, domain%num_atom_domain+domain%num_atom_boundary, nthread
+        coord_pbc(i,1) = real(coord(i,1),wp)
+        coord_pbc(i,2) = real(coord(i,2),wp)
+        coord_pbc(i,3) = real(coord(i,3),wp)
+      end do
+    end if
+
+    !$omp end parallel
+    !$omp barrier
+    
+    ! bond energy
+    !
+    call compute_energy_bond(domain, enefunc, coord_pbc, &
+                             force_omp, ebond_omp, virial_omp)
+
+    ! angle energy
+    !
+    call compute_energy_angle_g96(domain, enefunc, coord_pbc, &
+                              force_omp, eangle_omp, virial_omp)
+
+    ! dihedral energy
+    !
+    call compute_energy_dihed(domain, enefunc, coord_pbc, &
+                              force_omp, edihed_omp, virial_omp)
+
+    ! nonlocal energy
+    !
+    if (nonb_ene) then
+      if (enefunc%electrostatic == ElectrostaticRF) then
+        call compute_energy_martini_rf(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, elec_omp, virial_omp)
+      else
+        call compute_energy_martini_ele(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, elec_omp, virial_omp)
+      end if
+      call compute_energy_martini_vdw(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, evdw_omp, virial_omp)
+    else
+      if (enefunc%electrostatic == ElectrostaticRF) then
+!       call compute_energy_martini_rf(domain, enefunc, pairlist, &
+!                            coord_pbc, force_omp, elec_omp, virial_omp)
+        call compute_force_martini_rf(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, virial_omp)
+      else
+        call compute_force_martini_ele(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, virial_omp)
+      end if
+!     call compute_energy_martini_vdw(domain, enefunc, pairlist, &
+!                            coord_pbc, force_omp, evdw_omp, virial_omp)
+      call compute_force_martini_vdw(domain, enefunc, pairlist, &
+                             coord_pbc, force_omp, virial_omp)
+    end if
+
+    ! restraint energy
+    !
+    if (enefunc%restraint) &
+      call compute_energy_restraints(.true., .true., domain,                 &
+                                     enefunc, coord, force_omp,              &
+                                     virial_omp, virial_ext_omp,             &
+                                     eposi_omp, energy%restraint_rmsd,       &
+                                     energy%rmsd, energy%restraint_distance, &
+                                     energy%restraint_emfit)
+
+    ! gather values
+    !
+    !$omp parallel default(shared) private(id, i, ix, force_tmp, start_i) 
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    do ix = 1, nthread
+
+      !$omp do private(i)
+      do i = 1, domain%num_atom_domain+domain%num_atom_boundary
+        force(i,1) = force(i,1) + force_omp(i,1,ix)
+        force(i,2) = force(i,2) + force_omp(i,2,ix)
+        force(i,3) = force(i,3) + force_omp(i,3,ix)
+      end do
+      !$omp end do
+      !$omp barrier
+    end do
+    if (enefunc%assign_force_max) then
+      !$omp do 
+      do i = 1, domain%num_atom_domain+domain%num_atom_boundary
+        if (force(i,1) > enefunc%upper_force_value) &
+          force(i,1) = enefunc%upper_force_value
+        if (force(i,1) < -enefunc%upper_force_value) &
+          force(i,1) = -enefunc%upper_force_value
+        if (force(i,2) > enefunc%upper_force_value) &
+          force(i,2) = enefunc%upper_force_value
+        if (force(i,2) < -enefunc%upper_force_value) &
+          force(i,2) = -enefunc%upper_force_value
+        if (force(i,3) > enefunc%upper_force_value) &
+          force(i,3) = enefunc%upper_force_value
+        if (force(i,3) < -enefunc%upper_force_value) &
+          force(i,3) = -enefunc%upper_force_value
+      end do
+    end if
+
+    !$omp end parallel
+
+    do id = 1, nthread
+
+      virial    (1:3,1:3) = virial    (1:3,1:3) + virial_omp    (1:3,1:3,id)
+      virial_ext(1:3,1:3) = virial_ext(1:3,1:3) + virial_ext_omp(1:3,1:3,id)
+
+      energy%bond               = energy%bond               + ebond_omp(id)
+      energy%angle              = energy%angle              + eangle_omp(id)
+      energy%dihedral           = energy%dihedral           + edihed_omp(id)
+      energy%van_der_waals      = energy%van_der_waals      + evdw_omp(id)
+      energy%electrostatic      = energy%electrostatic      + elec_omp(id)
+      energy%restraint_position = energy%restraint_position + eposi_omp(id)
+
+    end do
+
+    energy%electrostatic = energy%electrostatic + enefunc%rf_self
+
+    ! total energy
+    !
+    energy%total = energy%bond               &
+                 + energy%angle              &
+                 + energy%dihedral           &
+                 + energy%van_der_waals      &
+                 + energy%electrostatic       
+
+    if (reduce) &
+      call reduce_ene(energy, virial)
+    call mpi_barrier(mpi_comm_country, ierror)
+
+    return
+
+  end subroutine compute_energy_martini
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
   !  Subroutine    output_energy_genesis
   !> @brief        output energy in GENESIS style
   !! @authors      TM, CK
@@ -946,12 +1205,6 @@ contains
       write(category(ifm),frmt) 'VDWAALS'
       values(ifm) = energy%van_der_waals
       ifm = ifm+1
-
-      if (enefunc%dispersion_corr /= Disp_Corr_NONE) then
-        write(category(ifm),frmt) 'DISP-CORR_ENE'
-        values(ifm) = energy%disp_corr_energy
-        ifm = ifm+1
-      endif
 
       write(category(ifm),frmt) 'ELECT'
       values(ifm) = energy%electrostatic
@@ -1358,6 +1611,76 @@ contains
     return
 
   end subroutine reduce_ene_go
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    reduce_ene
+  !> @brief        reduce energy and virial
+  !! @authors      JJ
+  !! @param[inout] energy : energy information
+  !! @param[inout] virial : virial term of
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine reduce_ene(energy, virial)
+
+    ! formal arguments
+    type(s_energy),          intent(inout) :: energy
+    real(dp),                intent(inout) :: virial(3,3)
+
+#ifdef HAVE_MPI_GENESIS
+
+    ! local variables
+    real(dp)                 :: before_reduce(23), after_reduce(23)
+    integer                  :: i, j, n
+
+
+    ! Allreduce virial and energy components
+    !
+    n = 0
+    do i = 1, 3
+      do j = 1, 3
+        n = n + 1
+        before_reduce(n) = virial(i,j)
+      end do
+    end do
+
+    before_reduce(10) = energy%bond
+    before_reduce(11) = energy%angle
+    before_reduce(12) = energy%dihedral
+    before_reduce(13) = energy%electrostatic
+    before_reduce(14) = energy%van_der_waals
+    before_reduce(16) = energy%restraint_position
+    before_reduce(19) = energy%total
+
+#ifdef HAVE_MPI_GENESIS
+    call mpi_allreduce(before_reduce, after_reduce, 19, mpi_real8,  &
+                       mpi_sum, mpi_comm_country, ierror)
+#else
+    after_reduce(1:19) = before_reduce(1:19)
+#endif
+
+    n = 0
+    do i = 1, 3
+      do j = 1, 3
+        n = n + 1
+        virial(i,j) = after_reduce(n)
+      end do
+    end do
+
+    energy%bond               = after_reduce(10)
+    energy%angle              = after_reduce(11)
+    energy%dihedral           = after_reduce(12)
+    energy%electrostatic      = after_reduce(13)
+    energy%van_der_waals      = after_reduce(14)
+    energy%restraint_position = after_reduce(16)
+    energy%total              = after_reduce(19)
+
+#endif
+
+    return
+
+  end subroutine reduce_ene
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

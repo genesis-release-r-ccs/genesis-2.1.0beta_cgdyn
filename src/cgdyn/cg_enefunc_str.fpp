@@ -25,6 +25,7 @@ module cg_enefunc_str_mod
   type, public :: s_enefunc
 
     integer                       :: forcefield
+    integer                       :: electrostatic
     integer                       :: output_style
 
     integer                       :: num_bonds
@@ -35,7 +36,7 @@ module cg_enefunc_str_mod
     integer                       :: num_dihe_all
     integer                       :: num_base_stack_all
     integer                       :: num_contact_all
-    integer                       :: num_excl_all
+    integer                       :: num_excl
     integer                       :: num_nb14_all
 
     integer                       :: num_atom_cls
@@ -172,10 +173,11 @@ module cg_enefunc_str_mod
     integer,          allocatable :: pwmcosns_involved_spec(:,:)
 
     ! excl
-    integer,          allocatable :: excl_list(:,:,:)
+    integer,          allocatable :: excl_list(:,:)
 
     ! elec
     integer                       :: num_cg_elec
+    real(wp)                      :: rf_self
     integer,          allocatable :: cg_elec_list(:)
     integer,          allocatable :: cg_elec_list_inv(:)
 
@@ -279,8 +281,6 @@ module cg_enefunc_str_mod
     integer,          allocatable :: nb14_list1(:,:,:)
     integer,          allocatable :: sc_list(:,:,:)
     integer,          allocatable :: sc_list1(:,:,:)
-    integer,          allocatable :: num_excl_total(:)
-    integer,          allocatable :: num_excl_total1(:)
     integer,          allocatable :: num_nb14_total(:)
     integer,          allocatable :: num_nb14_total1(:)
     integer(1),       allocatable :: exclusion_mask(:,:)
@@ -290,10 +290,14 @@ module cg_enefunc_str_mod
     real(wp)                      :: cutoffdist
     real(wp)                      :: pairlistdist
     real(wp)                      :: dielec_const
+    real(wp)                      :: epsilon_rf
     real(wp)                      :: debye
+    real(wp)                      :: cg_cutoffdist_vdw
+    real(wp)                      :: cg_switchdist_vdw
     real(wp)                      :: cg_cutoffdist_ele
     real(wp)                      :: cg_cutoffdist_126
     real(wp)                      :: cg_cutoffdist_DNAbp
+    real(wp)                      :: cg_pairlistdist_vdw
     real(wp)                      :: cg_pairlistdist_ele
     real(wp)                      :: cg_pairlistdist_126
     real(wp)                      :: cg_pairlistdist_PWMcos
@@ -664,7 +668,8 @@ contains
     enefunc%switchdist             = 0.0_wp
     enefunc%cutoffdist             = 0.0_wp
     enefunc%pairlistdist           = 0.0_wp
-    enefunc%dielec_const           = 0.0_wp
+    enefunc%dielec_const           = 1.0_wp
+    enefunc%epsilon_rf             = 0.0_wp
 
     enefunc%pme_use                = .false.
     enefunc%pme_alpha              = 0.0_wp
@@ -906,16 +911,16 @@ contains
     case (EneFuncExcl)
 
       if (allocated(enefunc%excl_list)) then
-        if (size(enefunc%excl_list(1,1,:)) /= var_size) &
+        if (size(enefunc%excl_list(1,:)) /= var_size) &
           deallocate(enefunc%excl_list,  &
                      stat = dealloc_stat)
       end if
 
-      if (.not. allocated(enefunc%excl_list)) &
-        allocate(enefunc%excl_list(2, MaxExcl, var_size), &
+      if (.not. allocated(enefunc%excl_list))    &
+        allocate(enefunc%excl_list(2, var_size), &
                  stat = alloc_stat)
 
-      enefunc%excl_list(1:2, 1:MaxExcl, 1:var_size) = 0
+      enefunc%excl_list(1:2, 1:var_size) = 0
 
     case (EneFuncAngl)
 
@@ -1703,32 +1708,35 @@ contains
     case (EneFuncNbon)
 
       if (allocated(enefunc%nonb_atom_cls)) then
-        deallocate(enefunc%nonb_atom_cls,        &
-                   enefunc%nb14_lj6,             &
-                   enefunc%nb14_lj10,            &
-                   enefunc%nb14_lj12,            &
-                   enefunc%nonb_lj6,             &
-                   enefunc%nonb_lj10,            &
-                   enefunc%nonb_lj12,            &
-                   enefunc%nonb_aicg_sig,        &
-                   enefunc%nonb_aicg_eps,        &
-                   enefunc%atom_cls_2_base_type, &
+        deallocate(enefunc%nonb_atom_cls, &
+                   enefunc%nb14_lj6,      &
+                   enefunc%nb14_lj10,     &
+                   enefunc%nb14_lj12,     &
+                   enefunc%nonb_lj6,      &
+                   enefunc%nonb_lj10,     &
+                   enefunc%nonb_lj12,     &
                    stat = dealloc_stat)
-      end if
-      if (enefunc%cg_KH_calc.and.allocated(enefunc%cg_KH_epsilon)) then
-        deallocate(enefunc%cg_KH_epsilon, &
-                   enefunc%cg_KH_sigma,   &
-                   stat = dealloc_stat)
-      end if
-      if (enefunc%cg_IDR_KH_calc.and.allocated(enefunc%cg_IDR_KH_epsilon)) then
-        deallocate(enefunc%cg_IDR_KH_epsilon, &
-                   enefunc%cg_IDR_KH_sigma,   &
-                   stat = dealloc_stat)
-      end if
-      if (enefunc%cg_IDR_HPS_calc.and.allocated(enefunc%cg_IDR_HPS_lambda)) then
-        deallocate(enefunc%cg_IDR_HPS_lambda, &
-                   enefunc%cg_IDR_HPS_sigma,  &
-                   stat = dealloc_stat)
+        if (enefunc%forcefield == ForcefieldRESIDCG) then
+          deallocate(enefunc%nonb_aicg_sig, &
+                     enefunc%nonb_aicg_eps, &
+                     enefunc%atom_cls_2_base_type, &
+                     stat = dealloc_stat)
+          if (enefunc%cg_KH_calc) then
+            deallocate(enefunc%cg_KH_epsilon, &
+                       enefunc%cg_KH_sigma,   &
+                       stat = dealloc_stat)
+          end if
+          if (enefunc%cg_IDR_KH_calc) then
+            deallocate(enefunc%cg_IDR_KH_epsilon, &
+                       enefunc%cg_IDR_KH_sigma,   &
+                       stat = dealloc_stat)
+          end if
+          if (enefunc%cg_IDR_HPS_calc) then
+            deallocate(enefunc%cg_IDR_HPS_lambda, &
+                       enefunc%cg_IDR_HPS_sigma,  &
+                       stat = dealloc_stat)
+          end if
+        end if
       end if
 
     case (EneFuncNonb)
@@ -1753,6 +1761,13 @@ contains
         deallocate(enefunc%restraint_atom,                  &
                    enefunc%restraint_force,                 &
                    enefunc%restraint_coord,                 &
+                   stat = dealloc_stat)
+      end if
+
+    case (EneFuncExcl)
+
+      if (allocated(enefunc%excl_list)) then
+        deallocate(enefunc%excl_list,  &
                    stat = dealloc_stat)
       end if
 
@@ -1786,6 +1801,7 @@ contains
     call dealloc_enefunc(enefunc, EneFuncBond)
     call dealloc_enefunc(enefunc, EneFuncAngl)
     call dealloc_enefunc(enefunc, EneFuncDihe)
+    call dealloc_enefunc(enefunc, EneFuncExcl)
     call dealloc_enefunc(enefunc, EneFuncContact)
     call dealloc_enefunc(enefunc, EneFuncNbon)
     call dealloc_enefunc(enefunc, EneFuncNonb)

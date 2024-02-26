@@ -175,12 +175,14 @@ contains
     ! set parameters for boundary condition
     !
     call setup_boundary(ctrl_data%bound_info,                      &
+                        ctrl_data%ene_info,                        &
                         ctrl_data%ens_info%ensemble,               &
                         ctrl_data%ene_info%cg_pairlistdist_ele,    &
                         ctrl_data%ene_info%cg_pairlistdist_126,    &
                         ctrl_data%ene_info%cg_pairlistdist_PWMcos, &
                         ctrl_data%ene_info%cg_pairlistdist_DNAbp,  &
                         ctrl_data%ene_info%cg_pairlistdist_exv,    &
+                        ctrl_data%ene_info%cg_cellsize_min,        &
                         molecule, rst, boundary)
 
     ! set parameters for domain 
@@ -354,12 +356,14 @@ contains
     ! set parameters for boundary condition
     !
     call setup_boundary(ctrl_data%bound_info,                      &
+                        ctrl_data%ene_info,                        &
                         ctrl_data%ens_info%ensemble,               &
                         ctrl_data%ene_info%cg_pairlistdist_ele,    &
                         ctrl_data%ene_info%cg_pairlistdist_126,    &
                         ctrl_data%ene_info%cg_pairlistdist_PWMcos, &
                         ctrl_data%ene_info%cg_pairlistdist_DNAbp,  &
                         ctrl_data%ene_info%cg_pairlistdist_exv,    &
+                        ctrl_data%ene_info%cg_cellsize_min,        &
                         molecule, rst, boundary)
 
     call setup_domain(ctrl_data%ene_info,  &
@@ -519,12 +523,14 @@ contains
     ! set parameters for boundary condition
     !
     call setup_boundary(ctrl_data%bound_info,                      &
+                        ctrl_data%ene_info,                        &
                         ctrl_data%ens_info%ensemble,               &
                         ctrl_data%ene_info%cg_pairlistdist_ele,    &
                         ctrl_data%ene_info%cg_pairlistdist_126,    &
                         ctrl_data%ene_info%cg_pairlistdist_PWMcos, &
                         ctrl_data%ene_info%cg_pairlistdist_DNAbp,  &
                         ctrl_data%ene_info%cg_pairlistdist_exv,    &
+                        ctrl_data%ene_info%cg_cellsize_min,        &
                         molecule, rst, boundary)
 
     ! set parameters for domain 
@@ -708,12 +714,14 @@ contains
     ! set parameters for boundary condition
     !
     call setup_boundary(ctrl_data%bound_info,                      &
+                        ctrl_data%ene_info,                        &
                         ctrl_data%ens_info%ensemble,               &
                         ctrl_data%ene_info%cg_pairlistdist_ele,    &
                         ctrl_data%ene_info%cg_pairlistdist_126,    &
                         ctrl_data%ene_info%cg_pairlistdist_PWMcos, &
                         ctrl_data%ene_info%cg_pairlistdist_DNAbp,  &
                         ctrl_data%ene_info%cg_pairlistdist_exv,    &
+                        ctrl_data%ene_info%cg_cellsize_min,        &
                         molecule, rst, boundary)
 
     ! set parameters for domain 

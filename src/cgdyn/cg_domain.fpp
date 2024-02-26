@@ -120,7 +120,11 @@ contains
 
     ! decision of domains
     !
-    call setup_domain_range(cell, molecule, boundary, domain)
+    if (boundary%load_balance) then
+      call setup_domain_range(cell, molecule, boundary, domain)
+    else
+      call setup_domain_range_nolb(cell, boundary, domain)
+    end if
 
     ! assign the rank of each dimension from my_rank
     !
@@ -163,7 +167,8 @@ contains
 
     ! assign the interaction cell for each interaction
     !
-    call assign_neighbor_cells(boundary, domain)
+    enefunc%forcefield = ene_info%forcefield
+    call assign_neighbor_cells(enefunc, boundary, domain)
 
     call setup_domain_interaction(boundary, domain)
 
@@ -322,6 +327,64 @@ contains
     return
 
   end subroutine setup_domain_range
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    setup_domain_range_nolb
+  !> @brief        decide domain range without load balancing
+  !! @authors      JJ
+  !! @param[in]    boundary : boundary condition information
+  !! @param[inout] domain   : domain information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine setup_domain_range_nolb(cell, boundary, domain)
+
+    ! formal arguments
+    integer,                  intent(in)    :: cell(:)
+    type(s_boundary), target, intent(in)    :: boundary
+    type(s_domain),   target, intent(inout) :: domain
+
+    ! local variable
+    integer                   :: nc(3), iproc(3)
+    integer                   :: i, j, k, quotient, remainder
+
+    integer,          pointer :: cell_start(:), cell_end(:)
+
+    cell_start  => domain%cell_start
+    cell_end    => domain%cell_end  
+    nc(1)       = boundarY%num_domain(1)
+    nc(2)       = boundarY%num_domain(2)
+    nc(3)       = boundarY%num_domain(3)
+
+    ! Assign the rank of each dimension from my_rank
+    !
+    iproc(1) = mod(my_city_rank, nc(1))
+    iproc(2) = mod(my_city_rank/nc(1), nc(2))
+    iproc(3) = my_city_rank/(nc(1)*nc(2))
+
+    ! Assign the cell index for each processor and the total number of cells
+    !
+    do i = 1, 3
+
+      quotient = cell(i) / nc(i)
+      remainder = mod(cell(i), nc(i))
+
+      if (iproc(i) <= (remainder -1)) then
+        quotient       = quotient + 1
+        cell_start(i)  = quotient * iproc(i) + 1
+        cell_end(i)    = cell_start(i) + quotient - 1
+      else
+        cell_start(i)  = (quotient+1)*remainder + quotient*(iproc(i)-remainder)
+        cell_start(i)  = cell_start(i) + 1
+        cell_end(i)    = cell_start(i) + quotient - 1
+      end if
+
+    end do
+
+    return
+
+  end subroutine setup_domain_range_nolb
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
@@ -1888,9 +1951,10 @@ contains
   !
   !======1=========2=========3=========4=========5=========6=========7=========8
 
-  subroutine assign_neighbor_cells(boundary, domain)
+  subroutine assign_neighbor_cells(enefunc, boundary, domain)
 
     ! formal arguments
+    type(s_enefunc),          intent(in)    :: enefunc
     type(s_boundary), target, intent(in)    :: boundary
     type(s_domain),   target, intent(inout) :: domain
 
@@ -1920,51 +1984,39 @@ contains
 
         jc = boundary%neighbor_cells(inbc,ic)
         j  = cell_g2l(jc)
-
         if (j /= 0) then
           domain%near_neighbor_cells(inbc,i) = j
         else if (cell_g2b(jc) /= 0) then
           domain%near_neighbor_cells(inbc,i) = cell_g2b(jc)+ncel_local
         end if
-
         if (j > i) then
-
           k  = k  + 1
           domain%neighbor_cells(k,i) = j
-
         else if (cell_g2b(jc) /= 0) then
-
           j  = cell_g2b(jc) + ncel_local
           k  = k  + 1
           domain%neighbor_cells(k,i) = j
-
         end if
-
       end do
-
       domain%near_neighbor_cell_count(i)  = k
 
-      do inbc = 28, 125
+      if (enefunc%forcefield /= ForcefieldGroMartini) then
 
-        jc = boundary%neighbor_cells(inbc,ic)
-        j  = cell_g2l(jc)
+        do inbc = 28, 125
+          jc = boundary%neighbor_cells(inbc,ic)
+          j  = cell_g2l(jc)
+          if (j > i) then
+            k  = k  + 1
+            domain%neighbor_cells(k,i) = j
+          else if (cell_g2b(jc) /= 0) then
+            j  = cell_g2b(jc) + ncel_local
+            k  = k  + 1
+            domain%neighbor_cells(k,i) = j
+          end if
+        end do
+        domain%neighbor_cell_count(i) = k
 
-        if (j > i) then
-
-          k  = k  + 1
-          domain%neighbor_cells(k,i) = j
-
-        else if (cell_g2b(jc) /= 0) then
-
-          j  = cell_g2b(jc) + ncel_local
-          k  = k  + 1
-          domain%neighbor_cells(k,i) = j
-
-        end if
-
-      end do
-
-      domain%neighbor_cell_count(i) = k
+      end if
 
     end do
 
@@ -1975,32 +2027,27 @@ contains
       ic = cell_b2g(ii)
 
       do inbc = 1, 27
-
         jc = boundary%neighbor_cells(inbc,ic)
         j  = cell_g2b(jc) + ncel_local
-
         if (j > i) then
-
           k  = k  + 1
           domain%neighbor_cells(k,i) = j
-
         end if
       end do
 
-      do inbc = 28, 125
+      if (enefunc%forcefield /= ForcefieldGroMartini) then
 
-        jc = boundary%neighbor_cells(inbc,ic)
-        j  = cell_g2b(jc) + ncel_local 
+        do inbc = 28, 125
+          jc = boundary%neighbor_cells(inbc,ic)
+          j  = cell_g2b(jc) + ncel_local 
+          if (j > i) then
+            k  = k  + 1
+            domain%neighbor_cells(k,i) = j
+          end if
+        end do
+        domain%neighbor_cell_count(i) = k
 
-        if (j > i) then
-
-          k  = k  + 1
-          domain%neighbor_cells(k,i) = j
-
-        end if
-      end do
-
-      domain%neighbor_cell_count(i) = k
+      end if
 
     end do
 
@@ -3045,7 +3092,7 @@ contains
 
     ! assign the interaction cell for each interaction
     !
-    call assign_neighbor_cells(boundary, domain)
+    call assign_neighbor_cells(enefunc, boundary, domain)
 
     call setup_domain_interaction(boundary, domain)
 

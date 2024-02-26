@@ -1,6 +1,6 @@
 cg_assign_velocity.o: cg_assign_velocity.fpp cg_domain_str_mod.mod cg_dynvars_mod.mod cg_dynamics_str_mod.mod
 cg_assign_velocity_mod.mod: cg_assign_velocity.fpp cg_assign_velocity.o
-cg_boundary.o: cg_boundary.fpp cg_boundary_str_mod.mod cg_ensemble_str_mod.mod 
+cg_boundary.o: cg_boundary.fpp cg_boundary_str_mod.mod cg_enefunc_str_mod.mod cg_ensemble_str_mod.mod cg_energy_mod.mod
 cg_boundary_mod.mod: cg_boundary.fpp cg_boundary.o
 cg_boundary_str.o: cg_boundary_str.fpp  
 cg_boundary_str_mod.mod: cg_boundary_str.fpp cg_boundary_str.o
@@ -49,12 +49,14 @@ cg_energy_dihedrals1.o: cg_energy_dihedrals.fpp cg_enefunc_str_mod.mod cg_domain
 cg_energy_dihedrals_mod.mod: cg_energy_dihedrals.fpp cg_energy_dihedrals.o
 cg_energy_dihedrals.o: cg_energy_dihedrals.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod 
 cg_energy_dihedrals_mod.mod: cg_energy_dihedrals.fpp cg_energy_dihedrals.o
-cg_energy.o: cg_energy.fpp cg_energy_restraints_mod.mod cg_domain_str_mod.mod cg_energy_nonlocal_mod.mod cg_restraints_str_mod.mod cg_enefunc_str_mod.mod cg_dynvars_str_mod.mod cg_energy_bonds_mod.mod cg_energy_dihedrals_mod.mod cg_energy_go_mod.mod cg_energy_bases_mod.mod cg_energy_str_mod.mod cg_boundary_str_mod.mod cg_pairlist_str_mod.mod cg_energy_angles_mod.mod 
+cg_energy.o: cg_energy.fpp cg_energy_restraints_mod.mod cg_domain_str_mod.mod cg_energy_nonlocal_mod.mod cg_energy_martini_mod.mod cg_restraints_str_mod.mod cg_enefunc_str_mod.mod cg_dynvars_str_mod.mod cg_energy_bonds_mod.mod cg_energy_dihedrals_mod.mod cg_energy_go_mod.mod cg_energy_bases_mod.mod cg_energy_str_mod.mod cg_boundary_str_mod.mod cg_pairlist_str_mod.mod cg_energy_angles_mod.mod cg_energy_martini_mod.mod
 cg_energy_mod.mod: cg_energy.fpp cg_energy.o
 cg_energy_go.o: cg_energy_go.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod cg_pairlist_str_mod.mod 
 cg_energy_go_mod.mod: cg_energy_go.fpp cg_energy_go.o
 cg_energy_nonlocal.o: cg_energy_nonlocal.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod cg_pairlist_str_mod.mod 
 cg_energy_nonlocal_mod.mod: cg_energy_nonlocal.fpp cg_energy_nonlocal.o
+cg_energy_martini.o: cg_energy_martini.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod cg_pairlist_str_mod.mod 
+cg_energy_martini_mod.mod: cg_energy_martini.fpp cg_energy_martini.o
 cg_energy_restraints.o: cg_energy_restraints.fpp cg_enefunc_str_mod.mod cg_restraints_str_mod.mod cg_domain_str_mod.mod cg_boundary_str_mod.mod cg_rpath_str_mod.mod cg_enefunc_fit_mod.mod 
 cg_energy_restraints_mod.mod: cg_energy_restraints.fpp cg_energy_restraints.o
 cg_energy_str.o: cg_energy_str.fpp  
@@ -85,7 +87,7 @@ cg_output.o: cg_output.fpp cg_domain_str_mod.mod cg_enefunc_str_mod.mod cg_minim
 cg_output_mod.mod: cg_output.fpp cg_output.o
 cg_output_str.o: cg_output_str.fpp  
 cg_output_str_mod.mod: cg_output_str.fpp cg_output_str.o
-cg_pairlist.o: cg_pairlist.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod cg_boundary_str_mod.mod cg_pairlist_str_mod.mod 
+cg_pairlist.o: cg_pairlist.fpp cg_enefunc_str_mod.mod cg_domain_str_mod.mod cg_boundary_str_mod.mod cg_energy_str_mod.mod cg_pairlist_str_mod.mod 
 cg_pairlist_mod.mod: cg_pairlist.fpp cg_pairlist.o
 cg_pairlist_str.o: cg_pairlist_str.fpp cg_domain_str_mod.mod 
 cg_pairlist_str_mod.mod: cg_pairlist_str.fpp cg_pairlist_str.o

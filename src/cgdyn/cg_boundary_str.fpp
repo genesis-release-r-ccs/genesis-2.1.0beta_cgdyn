@@ -50,6 +50,7 @@ module cg_boundary_str_mod
 
     integer                       :: num_domain(3)
     logical                       :: calc_local_pbc
+    logical                       :: load_balance
 
     !  BoundaryCells
     integer,          allocatable :: neighbor_cells(:,:)
@@ -57,8 +58,9 @@ module cg_boundary_str_mod
   end type s_boundary
 
   ! parameters for allocatable variables
-  integer,      public, parameter :: BoundaryCells        = 1
-  integer,      public, parameter :: BoundaryCells_AICG2P = 2
+  integer,      public, parameter :: BoundaryCells         = 1
+  integer,      public, parameter :: BoundaryCells_AICG2P  = 2
+  integer,      public, parameter :: BoundaryCells_Martini = 3
 
   ! parameters
   integer,      public, parameter :: BoundaryTypeNOBC     = 1
@@ -169,6 +171,21 @@ contains
                  stat = alloc_stat)
 
       boundary%neighbor_cells     (1:125,1:var_size)  = 0
+
+    case(BoundaryCells_Martini)
+
+      var_size1 = var_size / 8
+      if (allocated(boundary%neighbor_cells)) then
+        if (size(boundary%neighbor_cells(1,:)) /= var_size)   &
+          deallocate(boundary%neighbor_cells,                 &
+                     stat = dealloc_stat)
+      end if
+
+      if (.not. allocated(boundary%neighbor_cells))           &
+        allocate(boundary%neighbor_cells    (27,var_size),    &
+                 stat = alloc_stat)
+
+      boundary%neighbor_cells     (1:27,1:var_size)  = 0
 
     case default
 

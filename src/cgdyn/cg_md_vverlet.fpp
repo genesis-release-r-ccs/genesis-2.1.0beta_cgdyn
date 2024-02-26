@@ -118,7 +118,7 @@ contains
 
     ! Check restart
     !
-    if (.not. dynamics%restart) then
+    if (.not. dynamics%restart .and. dynamics%gen_velocity) then
 
       call initial_velocity(temperature, iseed, domain)
       call stop_trans_rotation(dynamics, domain)
@@ -226,7 +226,7 @@ contains
 
       call timer(TimerComm2, TimerOff)
 
-      call random_push_stock
+!     call random_push_stock
 
       call integrate_vv2(dynamics, i, ensemble, domain, dynvars)
 
@@ -1672,16 +1672,23 @@ contains
       factor  = 1.0_wip - scale_v*scale_v
       factor  = factor*KBOLTZ*temp0
 
-      do i = 1, domain%num_atom_domain
+      !$omp parallel private(id, i, sigma, grandom)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+      do i = id+1, domain%num_atom_domain, nthread
         if (abs(mass(i)) < EPS) cycle
         sigma = sqrt(factor/mass(i))
-        grandom(1) = random_get_gauss()
-        grandom(2) = random_get_gauss()
-        grandom(3) = random_get_gauss()
+        grandom(1) = random_get_gauss_omp(id+1)
+        grandom(2) = random_get_gauss_omp(id+1)
+        grandom(3) = random_get_gauss_omp(id+1)
         random_f(i,1) = sigma*grandom(1)
         random_f(i,2) = sigma*grandom(2)
         random_f(i,3) = sigma*grandom(3)
       end do
+      !$omp end parallel
       if (mod(istep-1, dynamics%eneout_period) == 0 ) &
       call calc_kinetic(natom, mass, vel_ref, kin_full, ekin_full)
     end if

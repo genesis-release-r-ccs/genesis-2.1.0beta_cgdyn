@@ -40,6 +40,7 @@ module cg_enefunc_gromacs_mod
   public  :: define_enefunc_gromacs
   public  :: define_enefunc_gromacs_lb
   public  :: count_nonb_excl_go
+  public  :: count_nonb_excl
   private :: setup_enefunc_bond
   private :: setup_enefunc_angl
   private :: setup_enefunc_dihe
@@ -101,6 +102,11 @@ contains
     call setup_enefunc_dihe_alloc(grotop, domain, enefunc)
     call alloc_enefunc(enefunc, EneFuncDihe, MaxDihe, 1)
     call setup_enefunc_dihe(grotop, domain, enefunc)
+
+    if (enefunc%forcefield == ForcefieldGroMartini) then
+      MaxExcl = MaxBond+MaxAngl+MaxDihe
+      call alloc_enefunc(enefunc, EneFuncExcl, MaxExcl, 1)
+    end if
 
     if (enefunc%forcefield == ForcefieldRESIDCG) then
 
@@ -612,7 +618,6 @@ contains
             idx1 = gromol%angls(k)%atom_idx1 + ioffset
             idx2 = gromol%angls(k)%atom_idx2 + ioffset
             idx3 = gromol%angls(k)%atom_idx3 + ioffset
-
             icel1 = id_g2l(idx1)
             icel2 = id_g2l(idx3)
 
@@ -640,7 +645,6 @@ contains
             idx1 = gromol%angls(k)%atom_idx1 + ioffset
             idx2 = gromol%angls(k)%atom_idx2 + ioffset
             idx3 = gromol%angls(k)%atom_idx3 + ioffset
-
             icel1 = id_g2l(idx1)
             icel2 = id_g2l(idx3)
 
@@ -668,7 +672,33 @@ contains
             idx1 = gromol%angls(k)%atom_idx1 + ioffset
             idx2 = gromol%angls(k)%atom_idx2 + ioffset
             idx3 = gromol%angls(k)%atom_idx3 + ioffset
+            icel1 = id_g2l(idx1)
+            icel2 = id_g2l(idx3)
 
+            if (icel1 /= 0 .and. icel2 /= 0) then
+
+              icel1 = atom_2_cell(icel1)
+              icel2 = atom_2_cell(icel2)
+              if (icel1 <= ncel .and. icel2 <= ncel) then
+                icel_local = min(icel1,icel2)
+              else
+                if (natom(icel1) >= natom(icel2)) then
+                  icel_local = icel2
+                else if (natom(icel2) > natom(icel1)) then
+                  icel_local = icel1
+                end if
+              end if
+
+              if (icel_local > 0 .and. icel_local <= ncel) &
+                nangl = nangl + 1
+
+            end if
+
+          else if (gromol%angls(k)%func == 2) then
+
+            idx1 = gromol%angls(k)%atom_idx1 + ioffset
+            idx2 = gromol%angls(k)%atom_idx2 + ioffset
+            idx3 = gromol%angls(k)%atom_idx3 + ioffset
             icel1 = id_g2l(idx1)
             icel2 = id_g2l(idx3)
 
@@ -785,9 +815,7 @@ contains
     if (nanglflextypes > 0) then
 
       ntable = size(grotop%flangltypes(1)%theta(:))
-
       call alloc_enefunc(enefunc, EneFuncAngFlexTbl, nanglflextypes, ntable)
-
       center = ( AICG2P_FBA_MAX_ANG - AICG2P_FBA_MIN_ANG ) * 0.5_wp
 
       do i = 1, nanglflextypes
@@ -813,14 +841,11 @@ contains
         do while(t123 <= AICG2P_FBA_MAX_ANG)
 
           t123 = t123 + AICG2P_FBA_DTHEATA
-
           call table_flexibleangle(i, t123, enefunc%anglflex_theta,   &
                                    enefunc%anglflex_efunc,             &
                                    enefunc%anglflex_d2func,            &
                                    etmp, gradient)
-
           min_energy = min(min_energy, etmp)
-
           if (gradient < AICG2P_FBA_MIN_ANG_FORCE) then
             min_th      = t123
             min_th_ener =  etmp
@@ -903,7 +928,7 @@ contains
 
     if (enefunc%num_angflex > 0 .and. nanglflextypes <= 0 .and. main_rank) &
       call error_msg(                            &
-                      'Setup_Enefunc_Angl> Flexible angle type is not defined')
+               'Setup_Enefunc_Angl> Flexible angle type is not defined')
 
     ! setup for angle_local (gaussian type angle energy)
     !
@@ -1002,7 +1027,7 @@ contains
                 if (icel_local > 0 .and. icel_local <= ncel) then
 
                   if (nangl > MaxAngl) &
-                    call error_msg('Setup_Enefunc_Angl> Too many angles.')
+                  call error_msg('Setup_Enefunc_Angl> Too many angles.')
 
                   nangl = nangl + 1
                   a_idx = nangl + nangl_f + nangl_l
@@ -1010,6 +1035,42 @@ contains
                   list (4,a_idx) = icel_local
                   force(    a_idx) = gromol%angls(k)%kt * JOU2CAL * 0.5_wp
                   theta(    a_idx) = gromol%angls(k)%theta_0 * RAD
+                end if
+
+              end if
+
+            else if (gromol%angls(k)%func == 2) then
+
+              idx1 = gromol%angls(k)%atom_idx1 + ioffset
+              idx2 = gromol%angls(k)%atom_idx2 + ioffset
+              idx3 = gromol%angls(k)%atom_idx3 + ioffset
+              icel1 = id_g2l(idx1)
+              icel2 = id_g2l(idx3)
+
+              if (icel1 /= 0 .and. icel2 /= 0) then
+
+                icel1 = atom_2_cell(icel1)
+                icel2 = atom_2_cell(icel2)
+                if (icel1 <= ncel .and. icel2 <= ncel) then
+                  icel_local = min(icel1,icel2)
+                else
+                  if (natom(icel1) >= natom(icel2)) then
+                    icel_local = icel2
+                  else if (natom(icel2) > natom(icel1)) then
+                    icel_local = icel1
+                  end if
+                end if
+
+                if (icel_local > 0 .and. icel_local <= ncel) then
+
+                  if (nangl > MaxAngl) &
+                  call error_msg('Setup_Enefunc_Angl> Too many angles.')
+
+                  nangl = nangl + 1
+                  list (1:3,nangl) = (/idx1, idx2, idx3/)
+                  list (4  ,nangl) = icel_local
+                  force(    nangl) = gromol%angls(k)%kt * JOU2CAL * 0.5_wp
+                  theta(    nangl) = gromol%angls(k)%theta_0 * RAD
                 end if
 
               end if
@@ -1383,10 +1444,9 @@ contains
     end do
 
 #ifdef HAVE_MPI_GENESIS
-    ndihe = enefunc%num_angle_domain
-    ndiheflex = enefunc%num_angle_flexible_domain
-    ndihe_local = enefunc%num_angle_local_domain
-
+    enefunc%num_dihe_flexible_domain = ndiheflex
+    enefunc%num_dihe_local_domain = ndihe_local
+    enefunc%num_dihe_domain = ndihe
     call mpi_allreduce(ndihe+ndiheflex+ndihe_local, enefunc%num_dihe_all, 1, &
                        mpi_integer, mpi_sum, mpi_comm_country, ierror)
 #endif
@@ -2524,6 +2584,11 @@ contains
     enefunc%num_atom_cls = grotop%num_atomtypes
     enefunc%fudge_lj     = grotop%defaults%fudge_lj
     enefunc%fudge_qq     = grotop%defaults%fudge_qq
+    enefunc%cg_cutoffdist_ele      = ene_info%cg_cutoffdist_ele
+    enefunc%cg_cutoffdist_vdw      = ene_info%cg_cutoffdist_vdw
+    enefunc%cg_pairlistdist_ele    = ene_info%cg_pairlistdist_ele
+    enefunc%cg_pairlistdist_vdw    = ene_info%cg_pairlistdist_vdw
+    enefunc%cg_switchdist_vdw      = ene_info%cg_switchdist_vdw
 
     ncel                 = domain%num_cell_local
     ELECOEF              = ELECOEF_GROMACS
@@ -3002,9 +3067,9 @@ contains
 
       call count_nonb_excl_go(domain, enefunc)
 
-    else 
+    else if (enefunc%forcefield == ForcefieldGroMartini) then
 
-!     call count_nonb_excl(.true., domain, enefunc)
+      call count_nonb_excl(.true., domain, enefunc)
 
     end if
 
@@ -3706,7 +3771,6 @@ contains
 
   end subroutine setup_enefunc_cg_pwmcosns
 
-
   !======1=========2=========3=========4=========5=========6=========7=========8
   !
   !  Subroutine    count_nonb_excl_go
@@ -3899,6 +3963,168 @@ contains
     call mpi_barrier(mpi_comm_country, ierror)
 
   end subroutine count_nonb_excl_go
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    count_nonb_excl
+  !> @brief        exclude 1-2, 1-3 interactions with Martini potential
+  !! @authors      JJ
+  !! @param[in]    first   : flag for first call or not
+  !! @param[inout] domain  : structure of domain
+  !! @param[inout] enefunc : structure of enefunc
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine count_nonb_excl(first, domain, enefunc)
+
+    ! formal arguments
+    logical,                 intent(in   ) :: first
+    type(s_domain),  target, intent(inout) :: domain
+    type(s_enefunc), target, intent(inout) :: enefunc
+
+    ! local variables
+    integer                  :: ncell, i, j, num_atom
+    integer                  :: list1, list2
+    integer                  :: start_i, start_j, ix, ixx, iy, iyy, inbc
+
+    real(wp),        pointer :: charge(:)
+    integer,         pointer :: ncell_local, ncell_boundary, max_atom
+    integer,         pointer :: natom(:), start_atom(:)
+    integer,         pointer :: near_cells_count(:), near_cells(:,:)
+    integer,         pointer :: atom_2_cell(:)
+    integer,         pointer :: id_g2l(:)
+    integer,         pointer :: num_nonb_excl(:,:)
+    integer,         pointer :: num_nonb_excl1(:,:)
+    integer,         pointer :: bondlist(:,:)
+    integer,         pointer :: anglelist(:,:)
+    integer,         pointer :: dihelist(:,:)
+    integer,         pointer :: excllist(:,:)
+    integer(1),      pointer :: exclusion_mask(:,:)
+
+    ncell_local          => domain%num_cell_local
+    ncell_boundary       => domain%num_cell_boundary
+    max_atom             => domain%max_num_atom
+    natom                => domain%num_atom
+    start_atom           => domain%start_atom
+    near_cells_count     => domain%near_cells_count
+    near_cells           => domain%near_cells      
+    atom_2_cell          => domain%atom_2_cell
+    id_g2l               => domain%id_g2l
+    charge               => domain%charge
+    
+    bondlist             => enefunc%bond_list
+    anglelist            => enefunc%angl_list
+    dihelist             => enefunc%dihe_list
+    excllist             => enefunc%excl_list
+    num_nonb_excl        => enefunc%num_nonb_excl
+    num_nonb_excl1       => enefunc%num_nonb_excl1
+    exclusion_mask       => enefunc%exclusion_mask
+
+    ncell = domain%num_cell_local + domain%num_cell_boundary
+
+    num_atom = domain%num_atom_domain+domain%num_atom_boundary
+
+    call timer(TimerMnonb, TimerOn)
+    !$omp parallel do private(i, start_i, ix, ixx, iy, iyy, inbc, j, start_j)
+    do i = 1, ncell
+      start_i = start_atom(i)
+      do ix = 1, natom(i)
+        ixx = ix + start_i
+        do iy = 1, natom(i)
+          iyy = iy + start_i
+          exclusion_mask(iyy,ixx) = 0
+          exclusion_mask(ixx,iyy) = 0
+        end do
+      end do
+      do inbc = 1, near_cells_count(i)
+        j = near_cells(inbc,i)
+        start_j = start_atom(j)
+        do ix = 1, natom(i)
+          ixx = ix + start_i
+          do iy = 1, natom(j)
+            iyy = iy + start_j
+            exclusion_mask(iyy,ixx) = 0
+            exclusion_mask(ixx,iyy) = 0
+          end do
+        end do
+      end do
+    end do
+    !$omp end parallel do
+    call timer(TimerMnonb, TimerOff)
+
+    ! initialization
+    !
+    !$omp parallel do
+    do i = 1, num_atom
+      exclusion_mask(i,i) = 1
+    end do
+    !$omp end parallel do
+
+    ! exclude 1-2 interaction
+    !
+    if (enefunc%excl_level > 0) then
+
+      !$omp parallel do private(list1,list2)
+      do i = 1, enefunc%num_bondsq_domain
+        list1      = bondlist(1,i)
+        list2      = bondlist(2,i)
+        list1      = id_g2l(list1)
+        list2      = id_g2l(list2)
+        exclusion_mask(list1,list2) = 1 
+        exclusion_mask(list2,list1) = 1 
+        excllist(1,i) = list1
+        excllist(2,i) = list2
+      end do
+      !$omp end parallel do
+      ix = enefunc%num_bondsq_domain
+    end if
+
+    ! exclude 1-3 interaction
+    !
+    if (enefunc%excl_level > 1) then
+
+      !$omp parallel do private(list1,list2)
+      do i = 1, enefunc%num_angle_domain
+        list1  = anglelist(1,i)
+        list2  = anglelist(3,i)
+        list1  = id_g2l(list1)
+        list2  = id_g2l(list2)
+        exclusion_mask(list1,list2) = 1 
+        exclusion_mask(list2,list1) = 1 
+        excllist(1,i+ix) = list1
+        excllist(2,i+ix) = list2
+      end do
+      !$omp end parallel do
+      ix = ix+enefunc%num_angle_domain
+
+    end if
+
+    ! count 1-4 interaction
+    !
+    if (enefunc%excl_level > 2) then
+
+      ix = ix+enefunc%num_angle_domain
+      !$omp parallel do private(list1,list2)
+      do i = 1, enefunc%num_dihe_domain
+        list1      = dihelist(1,i)
+        list2      = dihelist(4,i)
+        list1      = id_g2l(list1)
+        list2      = id_g2l(list2)
+        exclusion_mask(list1,list2) = 1 
+        exclusion_mask(list2,list1) = 1 
+        excllist(1,i+ix) = list1
+        excllist(2,i+ix) = list2
+      end do
+      !$omp end parallel do
+      ix = ix + enefunc%num_dihe_domain
+
+    end if
+
+    enefunc%num_excl = ix 
+
+    call mpi_barrier(mpi_comm_country, ierror)
+
+  end subroutine count_nonb_excl
 
 
   !======1=========2=========3=========4=========5=========6=========7=========8

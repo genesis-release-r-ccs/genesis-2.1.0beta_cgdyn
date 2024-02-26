@@ -44,6 +44,7 @@ module cg_enefunc_mod
   public  :: define_enefunc
   public  :: define_enefunc_lb
   public  :: update_enefunc_aicg
+  public  :: update_enefunc_martini
   public  :: copy_bond_information
   public  :: copy_angl_information
   public  :: copy_dihe_information
@@ -88,6 +89,8 @@ contains
     enefunc%forcefield        = ene_info%forcefield
     enefunc%output_style      = ene_info%output_style
     enefunc%dielec_const      = ene_info%dielec_const
+    enefunc%electrostatic     = ene_info%electrostatic
+    enefunc%epsilon_rf        = ene_info%epsilon_rf  
     enefunc%assign_force_max  = ene_info%assign_force_max
     enefunc%upper_force_value = ene_info%upper_force_value
 
@@ -272,6 +275,93 @@ contains
     return
 
   end subroutine update_enefunc_aicg
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_enefunc_martini
+  !> @brief        a driver subroutine for updating potential energy functions
+  !! @authors      JJ
+  !! @param[in]    table       : flag for table or not
+  !! @param[inout] domain      : domain information
+  !! @param[inout] comm        : communication information
+  !! @param[inout] enefunc     : energy potential functions information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_enefunc_martini(domain, comm, enefunc)
+
+    ! formal arguments
+    type(s_domain),                intent(inout) :: domain
+    type(s_comm),                  intent(inout) :: comm
+    type(s_enefunc),               intent(inout) :: enefunc
+
+    ! local variables
+    logical                        :: first
+
+    ! sending the bonding information to other domain
+    !
+
+    ! bond
+    !
+    call timer(TimerMBond, TimerOn)
+    call update_outgoing_enefunc_bondsq(domain, enefunc)
+    call update_outgoing_enefunc_bond(domain, enefunc)
+    call timer(TimerMBond, TimerOff)
+    call timer(TimerComm3, TimerOn)
+    call communicate_bond(domain, comm, enefunc)
+    call timer(TimerComm3, TimerOff)
+    call timer(TimerMBond, TimerOn)
+    call update_incoming_enefunc_bond(domain, enefunc)
+    call timer(TimerMBond, TimerOff)
+
+    ! angle
+    !
+    call timer(TimerMAngl, TimerOn)
+    call update_outgoing_enefunc_anglflex(domain, enefunc)
+    call update_outgoing_enefunc_angllocal(domain, enefunc)
+    call update_outgoing_enefunc_angl(domain, enefunc)
+    call timer(TimerMAngl, TimerOff)
+    call timer(TimerComm3, TimerOn)
+    call communicate_angl(domain, comm, enefunc)
+    call timer(TimerComm3, TimerOff)
+    call timer(TimerMAngl, TimerOn)
+    call update_incoming_enefunc_angl(domain, enefunc)
+    call timer(TimerMAngl, TimerOff)
+
+    ! dihedral
+    !
+    call timer(TimerMDihe, TimerOn)
+    call update_outgoing_enefunc_diheflex(domain, enefunc)
+    call update_outgoing_enefunc_dihelocal(domain, enefunc)
+    call update_outgoing_enefunc_dihe(domain, enefunc)
+    call timer(TimerMDihe, TimerOff)
+    call timer(TimerComm3, TimerOn)
+    call communicate_dihe(domain, comm, enefunc)
+    call timer(TimerComm3, TimerOff)
+    call timer(TimerMDihe, TimerOn)
+    call update_incoming_enefunc_dihe(domain, enefunc)
+    call timer(TimerMDihe, TimerOff)
+
+    ! restraint
+    ! 
+    if (enefunc%restraint) then
+      call update_outgoing_enefunc_restraint(domain, enefunc)
+      call timer(TimerComm3, TimerOn)
+      call communicate_restraint(domain, comm, enefunc)
+      call timer(TimerComm3, TimerOff)
+      call update_incoming_enefunc_restraint(domain, enefunc)
+    end if
+
+    ! re-count nonbond exclusion list
+    !
+    first = .false.
+!   call timer(TimerMNonb, TimerOn)
+    call count_nonb_excl(.false., domain, enefunc)
+!   call timer(TimerMNonb, TimerOff)
+
+    return
+
+  end subroutine update_enefunc_martini
 
   !======1=========2=========3=========4=========5=========6=========7=========8
   !

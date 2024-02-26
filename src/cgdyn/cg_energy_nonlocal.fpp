@@ -427,11 +427,8 @@ contains
       iatmcls  = atmcls(ix)
       force_local(1:3) = 0.0_wp
 
-#if defined (FUGAKU)
+      !!dir$ simd
       !ocl simd
-#else
-      !$omp simd
-#endif
       do k = 1, num_nb15
 
         j  = nb15_calc_list(k,i)
@@ -2090,11 +2087,8 @@ contains
       elec_temp   = 0.0_wp
       force_local(1:3) = 0.0_wp
 
-#if defined (FUGAKU)
-      !ocl simd
-#else
-      !$omp simd
-#endif
+      !!dir$ simd
+      !ocl norecurrence
       do k = 1, num_nb15
 
         j  = nb15_calc_list(k,i)

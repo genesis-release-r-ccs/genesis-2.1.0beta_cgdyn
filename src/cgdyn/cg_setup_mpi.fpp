@@ -100,6 +100,17 @@ contains
       nproc_city      = nproc_country
       my_city_rank    = my_country_rank
 
+    case (ElectrostaticRF)
+
+#ifdef HAVE_MPI_GENESIS
+      mpi_comm_city = mpi_comm_country
+#endif
+
+      real_calc       = .true.
+      reciprocal_calc = .false.
+      nproc_city      = nproc_country
+      my_city_rank    = my_country_rank
+
     end select
 
 #ifdef HAVE_MPI_GENESIS

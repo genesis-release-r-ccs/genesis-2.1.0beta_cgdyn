@@ -1126,6 +1126,7 @@ contains
     else
       molecule%chain_id(1:natom)         = 'A'
       molecule%atom_coord(1:3,1:natom)   =grocrd%atom_coord(1:3,1:natom)*10.0_wp
+      molecule%atom_velocity(1:3,1:natom)=grocrd%atom_velocity(1:3,1:natom)*10.0_wp
       molecule%atom_occupancy(1:natom)   = 0.0_wp
       molecule%atom_temp_factor(1:natom) = 0.0_wp
     end if

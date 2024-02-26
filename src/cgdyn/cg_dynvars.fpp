@@ -572,12 +572,6 @@ contains
       values(ifm) = dynvars%energy%van_der_waals
       ifm = ifm+1
 
-      if (enefunc%dispersion_corr /= Disp_Corr_NONE) then
-        write(category(ifm),frmt) 'DISP-CORR_ENE'
-        values(ifm) = dynvars%energy%disp_corr_energy
-        ifm = ifm+1
-      endif
-
       write(category(ifm),frmt) 'ELECT'
       values(ifm) = dynvars%energy%electrostatic
       ifm = ifm+1
@@ -644,12 +638,6 @@ contains
         write(category(ifm),frmt) 'VIRIAL'
         values(ifm) = dynvars%internal_virial
         ifm = ifm+1
-     
-        if (enefunc%dispersion_corr == Disp_Corr_EPRESS) then
-          write(category(ifm),frmt) 'DISP-CORR_VIR'
-          values(ifm) = dynvars%energy%disp_corr_virial
-          ifm = ifm+1
-        endif
      
         write(category(ifm),frmt) 'PRESSURE'
         values(ifm) = dynvars%internal_pressure

@@ -18,6 +18,7 @@ module cg_pairlist_mod
   use cg_boundary_str_mod
   use cg_enefunc_str_mod
   use cg_domain_str_mod
+  use cg_energy_str_mod
   use molecules_str_mod
   use timers_mod
   use messages_mod
@@ -34,6 +35,7 @@ module cg_pairlist_mod
   public  :: setup_pairlist
   public  :: update_pairlist_cg_alloc
   public  :: update_pairlist_cg
+  public  :: update_pairlist_martini
   public  :: update_pairlist_cg_pwmcos_alloc
   public  :: update_pairlist_cg_pwmcos
   public  :: update_pairlist_cg_pwmcosns_alloc
@@ -56,7 +58,7 @@ contains
 
     ! formal arguments
     type(s_boundary),         intent(in)    :: boundary
-    type(s_enefunc),          intent(in)    :: enefunc 
+    type(s_enefunc),          intent(inout) :: enefunc 
     type(s_domain),   target, intent(inout) :: domain 
     type(s_pairlist),         intent(inout) :: pairlist
     
@@ -70,7 +72,7 @@ contains
 
     
 
-    pairlist%pairlistdist           = enefunc%pairlistdist
+    pairlist%cg_pairlistdist_vdw    = enefunc%cg_pairlistdist_vdw
     pairlist%cg_pairlistdist_ele    = enefunc%cg_pairlistdist_ele
     pairlist%cg_pairlistdist_126    = enefunc%cg_pairlistdist_126
     pairlist%cg_pairlistdist_PWMcos = enefunc%cg_pairlistdist_PWMcos
@@ -114,6 +116,11 @@ contains
         alloc_num = MaxPwmCosns
         call alloc_pairlist(pairlist, PairListPWMCOSnsNum,  alloc_num)
       end if
+    else if (enefunc%forcefield == ForcefieldGROMARTINI) then
+      alloc_num = MaxAtom_domain
+      call alloc_pairlist(pairlist, PairListCGExvNum,       alloc_num)
+      alloc_num = Max_cg_Elec
+      call alloc_pairlist(pairlist, PairListCGEleNum,       alloc_num)
     end if
 
     call timer(TimerPairList, TimerOn)
@@ -142,19 +149,24 @@ contains
 
     end select
 
-    call update_pairlist_cg_alloc(coord_pbc, enefunc, domain, pairlist)
-    call update_pairlist_cg(coord_pbc, enefunc, domain, pairlist)
-    if (enefunc%cg_pwmcos_calc) then
-      call update_pairlist_cg_pwmcos_alloc(coord_pbc, enefunc, domain, &
-                                     pairlist)
-      call update_pairlist_cg_pwmcos(coord_pbc, enefunc, domain, &
-                                     pairlist)
-    end if
-    if (enefunc%cg_pwmcosns_calc) then
-      call update_pairlist_cg_pwmcosns_alloc(coord_pbc, enefunc, domain, &
+    if (enefunc%forcefield == ForcefieldRESIDCG) then
+      call update_pairlist_cg_alloc(coord_pbc, enefunc, domain, pairlist)
+      call update_pairlist_cg(coord_pbc, enefunc, domain, pairlist)
+      if (enefunc%cg_pwmcos_calc) then
+        call update_pairlist_cg_pwmcos_alloc(coord_pbc, enefunc, domain, &
                                        pairlist)
-      call update_pairlist_cg_pwmcosns(coord_pbc, enefunc, domain, &
+        call update_pairlist_cg_pwmcos(coord_pbc, enefunc, domain, &
                                        pairlist)
+      end if
+      if (enefunc%cg_pwmcosns_calc) then
+        call update_pairlist_cg_pwmcosns_alloc(coord_pbc, enefunc, domain, &
+                                         pairlist)
+        call update_pairlist_cg_pwmcosns(coord_pbc, enefunc, domain, &
+                                         pairlist)
+      end if
+    else
+      call update_pairlist_Martini_alloc(coord_pbc, enefunc, domain, pairlist)
+      call update_pairlist_Martini(coord_pbc, enefunc, domain, pairlist)
     end if
 
     call timer(TimerPairList, TimerOff)
@@ -165,7 +177,7 @@ contains
 
  !======1=========2=========3=========4=========5=========6=========7=========8
   !
-  !  Subroutine    update_pairlist_cg
+  !  Subroutine    update_pairlist_cg_alloc
   !> @brief        update pairlist for AICG
   !! @authors      JJ
   !! @param[in]    enefunc  : potential energy functions information
@@ -1735,6 +1747,432 @@ contains
     return
 
   end subroutine update_pairlist_cg_pwmcosns
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_pairlist_martini_alloc
+  !> @brief        update pairlist for Martini (allocation)
+  !! @authors      JJ
+  !! @param[in]    enefunc  : potential energy functions information
+  !! @param[in]    domain   : domain information
+  !! @param[inout] pairlist : pair-list information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_pairlist_martini_alloc(coord, enefunc, domain, pairlist)
+
+    ! formal arguments
+    real(wp),                 intent(in)    :: coord(:,:)
+    type(s_enefunc),  target, intent(inout) :: enefunc
+    type(s_domain),   target, intent(in)    :: domain
+    type(s_pairlist), target, intent(inout) :: pairlist
+
+    ! local variables
+    real(wp)                  :: pairdist2_ele, pairdist2_vdw
+    real(wp)                  :: dij(1:3), rij2, qtmp, term_elec, crf
+    real(wp)                  :: rtmp(1:3), cutoff, el_fact
+    real(dp)                  :: rf_self(nthread)
+
+    integer                   :: i, j, ij, k, ix, ixx, iy, iyy, inbc
+    integer                   :: i_atom, j_atom, num_atom
+    integer                   :: start_i, start_j
+    integer                   :: i_base_type, j_base_type
+    integer                   :: num_nb15, num_nb15_ele
+    integer                   :: id, omp_get_thread_num
+    integer                   :: ncell, nboundary
+    logical                   :: nb15_calc
+
+    integer,          pointer :: natom(:), ncharge(:)
+    integer,          pointer :: start_atom(:)
+    integer,          pointer :: near_cells_count(:), far_cells_count(:)
+    integer,          pointer :: near_cells(:,:), far_cells(:,:)
+    integer,          pointer :: id_l2g(:)
+    integer,          pointer :: cg_elec_list_inv(:)
+    integer,          pointer :: num_cg_vdw_calc(:)
+    integer,          pointer :: num_cg_ele_calc(:)
+    integer(1),       pointer :: exclusion_mask(:,:)
+    real(wp),         pointer :: charge(:)
+
+    ncell                =  domain%num_cell_local
+    nboundary            =  domain%num_cell_boundary
+    natom                => domain%num_atom
+    start_atom           => domain%start_atom
+    ncharge              => domain%num_charge
+    near_cells_count     => domain%near_cells_count
+    far_cells_count      => domain%far_cells_count
+    near_cells           => domain%near_cells
+    far_cells            => domain%far_cells
+    id_l2g               => domain%id_l2g
+    charge               => domain%charge
+
+    exclusion_mask       => enefunc%exclusion_mask
+    cg_elec_list_inv     => enefunc%cg_elec_list_inv
+
+    num_cg_vdw_calc      => pairlist%num_cg_exv_calc
+    num_cg_ele_calc      => pairlist%num_cg_ele_calc
+
+    pairdist2_ele        =  pairlist%cg_pairlistdist_ele**2
+    pairdist2_vdw        =  pairlist%cg_pairlistdist_vdw**2
+
+    num_atom = domain%num_atom_domain + domain%num_atom_boundary
+    num_cg_vdw_calc(1:num_atom) = 0
+    num_atom = enefunc%num_cg_elec
+    num_cg_ele_calc(1:num_atom) = 0
+
+    ! self correction term in reaction-field
+    !
+    cutoff = enefunc%cg_cutoffdist_ele
+    if (enefunc%epsilon_rf < EPS) then
+      crf = 1.0_wp/(2.0_wp*cutoff*cutoff*cutoff)
+    else
+      crf = (enefunc%epsilon_rf-enefunc%dielec_const) / &
+            (2.0_wp*enefunc%epsilon_rf+enefunc%dielec_const)
+      crf = crf / (cutoff*cutoff*cutoff)
+    end if
+    crf = 1.0_wp/cutoff + crf*cutoff*cutoff
+    el_fact = ELECOEF / enefunc%dielec_const
+
+    !$omp parallel default(shared)                                        &
+    !$omp private(id, i, start_i, ix, ixx, rtmp, num_nb15, iy, iyy, dij,  &
+    !$omp         rij2, inbc, j, start_j, qtmp, term_elec)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    ! make a pairlist in the same cell
+    !
+    do i = id+1, ncell+nboundary, nthread
+
+      start_i = start_atom(i)
+
+      do ix = 1, natom(i)  
+
+        ixx = ix + start_i
+        rtmp(1) = coord(ixx,1)
+        rtmp(2) = coord(ixx,2)
+        rtmp(3) = coord(ixx,3)
+        num_nb15 = 0
+      
+        if (i <= ncell) then
+          do iy = ix + 1, natom(i)
+            iyy = iy + start_i
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_vdw) num_nb15 = num_nb15 + 1
+            end if
+          end do
+        end if
+
+        do inbc = 1, near_cells_count(i)
+          j = near_cells(inbc,i)
+          start_j = start_atom(j)
+          do iy = 1, natom(j)
+            iyy = iy + start_j
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_vdw) num_nb15 = num_nb15 + 1
+            end if
+          end do
+        end do
+
+        if (num_nb15 > 0) then
+          num_cg_vdw_calc(ixx) = num_nb15
+        end if
+
+      end do
+
+    end do
+
+    ! electrostatic
+    !
+    rf_self(id+1) = 0.0_dp
+
+    do i = id+1, ncell+nboundary, nthread
+
+      start_i = start_atom(i)
+
+      do ix = 1, ncharge(i) 
+
+        num_nb15 = 0
+        ixx = ix + start_i
+        rtmp(1) = coord(ixx,1)
+        rtmp(2) = coord(ixx,2)
+        rtmp(3) = coord(ixx,3)
+
+        if (i <= ncell) then
+
+          if (enefunc%electrostatic == ElectrostaticRF) then
+            qtmp = charge(ixx)
+            term_elec = - qtmp*qtmp*crf
+            term_elec = term_elec*el_fact
+            rf_self(id+1) = rf_self(id+1) + 0.5_wp*term_elec
+          end if
+
+          do iy = ix + 1, ncharge(i)
+            iyy = iy + start_i
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_ele) num_nb15 = num_nb15 + 1
+            end if
+          end do
+        end if
+
+        do inbc = 1, near_cells_count(i)
+          j = near_cells(inbc,i)
+          start_j = start_atom(j)
+          do iy = 1, ncharge(j)
+            iyy = iy + start_j
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_ele) num_nb15 = num_nb15 + 1
+            end if
+          end do
+        end do
+
+        k = cg_elec_list_inv(ixx)
+        num_cg_ele_calc(k) = num_nb15
+
+      end do
+    end do
+
+    !$omp end parallel
+
+    do id = 1, nthread
+      enefunc%rf_self = enefunc%rf_self + rf_self(id)
+    end do
+
+    num_atom = domain%num_atom_domain + domain%num_atom_boundary
+    k = 0
+    do i = 1, num_atom
+      k = max(k,num_cg_vdw_calc(i))
+    end do
+#ifdef HAVE_MPI_GENESIS
+    call mpi_allreduce(mpi_in_place, k, 1, mpi_integer, &
+                       mpi_max, mpi_comm_country, ierror)
+#endif
+    Max_exv_nb15 = k * 2
+    call alloc_pairlist(pairlist, PairListCGExvList, &
+                        Max_exv_nb15, MaxAtom_domain)
+
+    num_atom = enefunc%num_cg_elec
+    k = 0
+    do i = 1, num_atom
+      k = max(k,num_cg_ele_calc(i))
+    end do
+#ifdef HAVE_MPI_GENESIS
+    call mpi_allreduce(mpi_in_place, k, 1, mpi_integer, &
+                       mpi_max, mpi_comm_country, ierror)
+#endif
+    Max_elec_nb15 = k * 2
+    call alloc_pairlist(pairlist, PairListCGEleList, &
+                        Max_elec_nb15, Max_cg_Elec)
+
+    return
+
+  end subroutine update_pairlist_martini_alloc
+
+  !======1=========2=========3=========4=========5=========6=========7=========8
+  !
+  !  Subroutine    update_pairlist_martini
+  !> @brief        update pairlist for Martini
+  !! @authors      JJ
+  !! @param[in]    enefunc  : potential energy functions information
+  !! @param[in]    domain   : domain information
+  !! @param[inout] pairlist : pair-list information
+  !
+  !======1=========2=========3=========4=========5=========6=========7=========8
+
+  subroutine update_pairlist_martini(coord, enefunc, domain, pairlist)
+
+    ! formal arguments
+    real(wp),                 intent(in)    :: coord(:,:)
+    type(s_enefunc),  target, intent(in)    :: enefunc
+    type(s_domain),   target, intent(in)    :: domain
+    type(s_pairlist), target, intent(inout) :: pairlist
+
+    ! local variables
+    real(wp)                  :: pairdist2_ele, pairdist2_vdw
+    real(wp)                  :: dij(1:3), rij2
+    real(wp)                  :: rtmp(1:3)
+
+    integer                   :: i, j, ij, k, ix, ixx, iy, iyy, inbc
+    integer                   :: i_atom, j_atom, num_atom
+    integer                   :: start_i, start_j
+    integer                   :: i_base_type, j_base_type
+    integer                   :: num_nb15, num_nb15_ele
+    integer                   :: id, omp_get_thread_num
+    integer                   :: ncell, nboundary
+    logical                   :: nb15_calc
+
+    integer,          pointer :: natom(:), ncharge(:)
+    integer,          pointer :: start_atom(:), atom_2_cell(:)
+    integer,          pointer :: near_cells_count(:), far_cells_count(:)
+    integer,          pointer :: near_cells(:,:), far_cells(:,:)
+    integer,          pointer :: id_l2g(:)
+    integer,          pointer :: cg_elec_list_inv(:)
+    integer,          pointer :: num_cg_vdw_calc(:)
+    integer,          pointer :: num_cg_ele_calc(:)
+    integer,          pointer :: cg_vdw_list(:,:), cg_ele_list(:,:)
+    integer(1),       pointer :: exclusion_mask(:,:)
+
+    ncell                =  domain%num_cell_local
+    nboundary            =  domain%num_cell_boundary
+    natom                => domain%num_atom
+    start_atom           => domain%start_atom
+    ncharge              => domain%num_charge
+    atom_2_cell          => domain%atom_2_cell
+    near_cells_count     => domain%near_cells_count
+    far_cells_count      => domain%far_cells_count
+    near_cells           => domain%near_cells
+    far_cells            => domain%far_cells
+    id_l2g               => domain%id_l2g
+
+    exclusion_mask       => enefunc%exclusion_mask
+    cg_elec_list_inv     => enefunc%cg_elec_list_inv
+
+    num_cg_vdw_calc      => pairlist%num_cg_exv_calc
+    num_cg_ele_calc      => pairlist%num_cg_ele_calc
+    cg_vdw_list          => pairlist%cg_exv_list
+    cg_ele_list          => pairlist%cg_ele_list
+
+    pairdist2_ele        =  pairlist%cg_pairlistdist_ele**2
+    pairdist2_vdw        =  pairlist%cg_pairlistdist_vdw**2
+
+    num_atom = domain%num_atom_domain + domain%num_atom_boundary
+    num_cg_vdw_calc(1:num_atom) = 0
+    num_atom = enefunc%num_cg_elec
+    num_cg_ele_calc(1:num_atom) = 0
+
+    !$omp parallel default(shared)                                          &
+    !$omp private(id, i, ixx, rtmp, num_nb15, iy, iyy, dij, rij2, inbc, j,  &
+    !$omp         start_j, start_i, k)
+#ifdef OMP
+    id = omp_get_thread_num()
+#else
+    id = 0
+#endif
+    do ixx = id+1, domain%num_atom_domain+domain%num_atom_boundary, nthread
+
+      i = atom_2_cell(ixx)
+      rtmp(1) = coord(ixx,1)
+      rtmp(2) = coord(ixx,2)
+      rtmp(3) = coord(ixx,3)
+
+      num_nb15 = 0
+
+      if (i <= ncell) then
+ 
+        do iyy = ixx + 1, start_atom(i+1)
+          if (exclusion_mask(iyy,ixx) /= 1) then
+            dij(1) = rtmp(1) - coord(iyy,1)
+            dij(2) = rtmp(2) - coord(iyy,2)
+            dij(3) = rtmp(3) - coord(iyy,3)
+            rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+            if (rij2 < pairdist2_vdw) then
+              num_nb15 = num_nb15 + 1
+              cg_vdw_list(num_nb15,ixx) = iyy
+            end if
+          end if
+        end do
+      end if
+
+      do inbc = 1, near_cells_count(i)
+
+        j = near_cells(inbc,i)
+        start_j = start_atom(j)
+        do iy = 1, natom(j)
+          iyy = iy + start_j
+          if (exclusion_mask(iyy,ixx) /= 1) then
+            dij(1) = rtmp(1) - coord(iyy,1)
+            dij(2) = rtmp(2) - coord(iyy,2)
+            dij(3) = rtmp(3) - coord(iyy,3)
+            rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+            if (rij2 < pairdist2_vdw) then
+              num_nb15 = num_nb15 + 1
+              cg_vdw_list(num_nb15,ixx) = iyy
+            end if
+          end if
+        end do
+      end do
+
+      num_cg_vdw_calc(ixx) = num_nb15
+      if (num_nb15 > Max_exv_nb15*0.7) pairlist%realloc_exv = 1
+
+    end do
+
+    ! electrostatic
+    !
+    do i = id+1, ncell+nboundary, nthread
+
+      start_i = start_atom(i)
+
+      do ix = 1, ncharge(i) 
+
+        num_nb15 = 0
+        ixx = ix + start_i
+        k = cg_elec_list_inv(ixx)
+        rtmp(1) = coord(ixx,1)
+        rtmp(2) = coord(ixx,2)
+        rtmp(3) = coord(ixx,3)
+
+        if (i <= ncell) then
+          do iy = ix + 1, ncharge(i)
+            iyy = iy + start_i
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_ele) then
+                num_nb15 = num_nb15 + 1
+                cg_ele_list(num_nb15,k) = iyy
+              end if
+            end if
+          end do
+        end if
+
+        do inbc = 1, near_cells_count(i)
+          j = near_cells(inbc,i)
+          start_j = start_atom(j)
+          do iy = 1, ncharge(j)
+            iyy = iy + start_j
+            if (exclusion_mask(iyy,ixx) /= 1) then
+              dij(1) = rtmp(1) - coord(iyy,1)
+              dij(2) = rtmp(2) - coord(iyy,2)
+              dij(3) = rtmp(3) - coord(iyy,3)
+              rij2 = dij(1)*dij(1) + dij(2)*dij(2) + dij(3)*dij(3)
+              if (rij2 < pairdist2_ele) then
+                num_nb15 = num_nb15 + 1
+                cg_ele_list(num_nb15,k) = iyy
+              end if
+            end if
+          end do
+        end do
+
+        num_cg_ele_calc(k) = num_nb15
+        if (num_nb15 > Max_elec_nb15*0.7) pairlist%realloc_elec = 1
+
+      end do
+    end do
+
+    !$omp end parallel
+
+    return
+
+  end subroutine update_pairlist_martini
 
   subroutine pairlist_exv_DNA_idr(k_dna, k_base, k_kh, k_idr_kh,             &
                          k_idr_hps,dna_check, cg_pro_use_KH, cg_IDR_KH,      &
