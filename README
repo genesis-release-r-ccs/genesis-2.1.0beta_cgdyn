@@ -6,23 +6,44 @@ GENESIS website
 ===============
 https://www.r-ccs.riken.jp/labs/cbrt/
 
-- System requirements and installation guide: 
 
-  To install cgdyn, please do the following step:
-  1. type "autoreconf"
-  2. type "./configure --enable-mixed". You can decide MPI fortran and C compilers by defining "FC" and "CC". 
-     example: "./configure --enable-mixed FC=mpif90 CC=mpicc"
-  3. Go to "src/cgdyn"
-  4. type "make"
-  5. You can execute MD simulations using the binary "cgdyn" generated in src/cgdyn directory.
+Installation Guide
+==================
+
+### General
+
+To install cgdyn, please follow these steps:
+
+  1. Type `autoreconf`.
+  2. Type `./configure --enable-mixed`. You can specify MPI Fortran and C compilers by defining `FC` and `CC`.
+     Example: `./configure --enable-mixed FC=mpif90 CC=mpicc`.
+  3. Navigate to the `src/cgdyn` directory.
+  4. Type `make`.
+  5. Now you can execute MD simulations using the `cgdyn` binary generated in the `src/cgdyn` directory.
+
+
+### MacOS users
+
+We have not extensively tested our code with the default LLVM compilers shipped with MacOS.
+Please use tools like Homebrew to install GNU compilers and perform the following steps before proceeding with the installation steps described in the General section:
+
+  - `export OMPI_CC=gcc-13`
+  - `export OMPI_CXX=g++-13`
 
   More information of installation can be found from https://www.r-ccs.riken.jp/labs/cbrt/installation/
   
-  Typically, the installation will take less than 10 minutres. Please use "make -j" for fast installation.
+  Typically, the installation process takes less than 10 minutes. For faster installation, use `make -j` (for example, `make -j4`).
+
+
+Documentation
+=============
 
 - Demo and tutorials: https://www.r-ccs.riken.jp/labs/cbrt/tutorials2022/
 - Instructions for use: https://github.com/RikenSugitaLab/cgdyntest
 
+
+Contributors
+============
 
 Project Leader: Yuji Sugita (RIKEN)
 
