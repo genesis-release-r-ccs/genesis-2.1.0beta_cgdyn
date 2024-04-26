@@ -1016,7 +1016,7 @@ contains
     rst%thermostat_momentum    = real(dynvars%thermostat_momentum,wp)
     rst%barostat_momentum(1:3) = real(dynvars%barostat_momentum(1:3),wp)
 
-    call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
+!   call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
 
     ! reduce coordinates
     !
@@ -1187,7 +1187,7 @@ contains
     rst%thermostat_momentum    = real(dynvars %thermostat_momentum,wp)
     rst%barostat_momentum(1:3) = real(dynvars %barostat_momentum(1:3),wp)
 
-    call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
+!   call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
 
     ! reduce coordinates
     !
@@ -1289,7 +1289,7 @@ contains
     rst%thermostat_momentum    = real(dynvars %thermostat_momentum,wp)
     rst%barostat_momentum(1:3) = real(dynvars %barostat_momentum(1:3),wp)
 
-    call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
+!   call random_stock_mpi_tobyte(mpi_comm_country, rst%random)
 
     ! reduce coordinates
     !
