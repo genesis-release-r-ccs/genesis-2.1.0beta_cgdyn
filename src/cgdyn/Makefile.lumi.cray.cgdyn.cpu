@@ -1,0 +1,1467 @@
+#-------------------------------------------------------------------------------
+# Fortran preprocessor
+#-------------------------------------------------------------------------------
+PP := cpp
+PPDEFS := -DCOMPILE_CC_VER
+PPDEFS += -DCOMPILE_CFLAGS
+PPDEFS += -DCOMPILE_DEFINED_VARIABLES
+PPDEFS += -DCOMPILE_FCFLAGS
+PPDEFS += -DCOMPILE_FC_VER
+PPDEFS += -DCOMPILE_GENESIS_VERSION
+PPDEFS += -DCOMPILE_HIPCC_VER
+PPDEFS += -DCOMPILE_HOST
+PPDEFS += -DCOMPILE_LDFLAGS
+PPDEFS += -DCOMPILE_USER
+PPDEFS += -DFFTE
+PPDEFS += -DHAVE_MPI_GENESIS
+PPDEFS += -DLAPACK
+PPDEFS += -DDSFMT_MEXP=19937
+PPDEFS += -DMPITYPE
+PPDEFS += -DOMP
+PPDEFS += -DPACKAGE_NAME=\'\'
+PPDEFS += -DPACKAGE_VERSION=\'\'
+PPDEFS += -DVERSION
+PPDEFS += -D_SINGLE
+PPDEFS += -DUSE_CRAY
+PPFLAGS := -traditional-cpp $(PPDEFS)
+
+#-------------------------------------------------------------------------------
+# Fortran compiler
+#-------------------------------------------------------------------------------
+FC := ftn
+FCFLAGS := -eZ
+FCFLAGS += -hfp2
+FCFLAGS += -homp
+FCFLAGS += -g
+FCFLAGS += -x dir
+FCFLAGS += -O2
+
+#-------------------------------------------------------------------------------
+# C compiler
+#-------------------------------------------------------------------------------
+CC := cc
+CCDEFS += -D_SINGLE
+CCFLAGS := -g
+CCFLAGS += -O2
+CCFLAGS += $(CCDEFS)
+
+#-------------------------------------------------------------------------------
+# Objects list
+#-------------------------------------------------------------------------------
+OBJS := messages.o
+OBJS += dSFMT.o
+OBJS += dSFMT_if.o
+OBJS += mpi_parallel.o
+OBJS += hardwareinfo.o
+OBJS += constants.o
+OBJS += timers.o
+OBJS += dihedral_libs.o
+OBJS += fileio_par.o
+OBJS += fileio_top.o
+OBJS += fileio.o
+OBJS += fileio_localres.o
+OBJS += string.o
+OBJS += fileio_rst.o
+OBJS += fileio_gpr.o
+OBJS += fileio_psf.o
+OBJS += fileio_crd.o
+OBJS += fileio_ambcrd.o
+OBJS += fileio_grotop.o
+OBJS += fileio_gropp.o
+OBJS += fileio_grocrd.o
+OBJS += fileio_pdb.o
+OBJS += fileio_data.o
+OBJS += fileio_prmtop.o
+OBJS += fileio_str.o
+OBJS += fileio_control.o
+OBJS += fileio_mode.o
+OBJS += table_libs.o
+OBJS += math_libs.o
+OBJS += random.o
+OBJS += molecules_str.o
+OBJS += fitting.o
+OBJS += fitting_str.o
+OBJS += select_atoms_str.o
+OBJS += select_atoms.o
+OBJS += select_contacts.o
+OBJS += select_parser.o
+OBJS += select_lexer.o
+OBJS += select.o
+OBJS += molecules.o
+OBJS += cg_assign_velocity.o
+OBJS += cg_boundary.o
+OBJS += cg_boundary_str.o
+OBJS += cg_communicate.o
+OBJS += cg_communicate_str.o
+OBJS += cg_control.o
+OBJS += cg_domain.o
+OBJS += cg_domain_str.o
+OBJS += cg_dynamics.o
+OBJS += cg_dynamics_str.o
+OBJS += cg_dynvars.o
+OBJS += cg_dynvars_str.o
+OBJS += cg_enefunc.o
+OBJS += cg_enefunc_fit.o
+OBJS += cg_enefunc_gromacs.o
+OBJS += cg_enefunc_localres.o
+OBJS += cg_enefunc_restraints.o
+OBJS += cg_enefunc_str.o
+OBJS += cg_energy.o
+OBJS += cg_energy_angles.o
+OBJS += cg_energy_bases.o
+OBJS += cg_energy_bonds.o
+OBJS += cg_energy_dihedrals.o
+OBJS += cg_energy_go.o
+OBJS += cg_energy_martini.o
+OBJS += cg_energy_nonlocal.o
+OBJS += cg_energy_restraints.o
+OBJS += cg_energy_str.o
+OBJS += cg_ensemble.o
+OBJS += cg_ensemble_str.o
+OBJS += cg_input.o
+OBJS += cg_md_leapfrog.o
+OBJS += cg_md_vverlet.o
+OBJS += cg_migration.o
+OBJS += cg_minimize.o
+OBJS += cg_minimize_str.o
+OBJS += cg_output.o
+OBJS += cg_output_str.o
+OBJS += cg_pairlist.o
+OBJS += cg_pairlist_str.o
+OBJS += cg_remd.o
+OBJS += cg_remd_str.o
+OBJS += cg_restart.o
+OBJS += cg_restraints.o
+OBJS += cg_restraints_str.o
+OBJS += cg_rpath.o
+OBJS += cg_rpath_str.o
+OBJS += cg_setup_cgdyn.o
+OBJS += cg_setup_mpi.o
+OBJS += cg_update_domain.o
+OBJS += cgdyn.o
+
+#-------------------------------------------------------------------------------
+# Default target
+#-------------------------------------------------------------------------------
+cgdyn: cgdyn.o
+	$(FC) $(FCFLAGS) -o $@ $(OBJS)
+
+#-------------------------------------------------------------------------------
+# Object targets
+#-------------------------------------------------------------------------------
+CGDYN_OBJS := cg_setup_mpi.o
+CGDYN_OBJS += cg_md_vverlet.o
+CGDYN_OBJS += cg_md_leapfrog.o
+CGDYN_OBJS += cg_dynamics.o
+CGDYN_OBJS += cg_minimize.o
+CGDYN_OBJS += cg_setup_cgdyn.o
+CGDYN_OBJS += cg_control.o
+CGDYN_OBJS += cg_energy.o
+CGDYN_OBJS += cg_communicate_str.o
+CGDYN_OBJS += cg_communicate.o
+CGDYN_OBJS += cg_minimize_str.o
+CGDYN_OBJS += cg_dynamics_str.o
+CGDYN_OBJS += cg_dynvars_str.o
+CGDYN_OBJS += cg_ensemble_str.o
+CGDYN_OBJS += cg_output_str.o
+CGDYN_OBJS += cg_boundary_str.o
+CGDYN_OBJS += cg_pairlist_str.o
+CGDYN_OBJS += cg_enefunc_str.o
+CGDYN_OBJS += cg_domain_str.o
+CGDYN_OBJS += cg_remd_str.o
+CGDYN_OBJS += cg_rpath_str.o
+CGDYN_OBJS += cg_remd.o
+CGDYN_OBJS += cg_rpath.o
+CGDYN_OBJS += molecules_str.o
+CGDYN_OBJS += fileio_grotop.o
+CGDYN_OBJS += fileio_control.o
+CGDYN_OBJS += hardwareinfo.o
+CGDYN_OBJS += timers.o
+CGDYN_OBJS += string.o
+CGDYN_OBJS += messages.o
+CGDYN_OBJS += mpi_parallel.o
+cgdyn.o: cgdyn.f90 $(CGDYN_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cgdyn.f90: cgdyn.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_SETUP_MPI_OBJS := cg_energy.o
+CG_SETUP_MPI_OBJS += cg_energy_str.o
+CG_SETUP_MPI_OBJS += cg_remd.o
+CG_SETUP_MPI_OBJS += cg_rpath.o
+CG_SETUP_MPI_OBJS += fileio_control.o
+CG_SETUP_MPI_OBJS += math_libs.o
+CG_SETUP_MPI_OBJS += messages.o
+CG_SETUP_MPI_OBJS += mpi_parallel.o
+cg_setup_mpi.o: cg_setup_mpi.f90 $(CG_SETUP_MPI_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_setup_mpi.f90: cg_setup_mpi.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_OBJS := cg_energy_bases.o
+CG_ENERGY_OBJS += cg_energy_dihedrals.o
+CG_ENERGY_OBJS += cg_energy_angles.o
+CG_ENERGY_OBJS += cg_energy_bonds.o
+CG_ENERGY_OBJS += cg_energy_go.o
+CG_ENERGY_OBJS += cg_energy_nonlocal.o
+CG_ENERGY_OBJS += cg_energy_martini.o
+CG_ENERGY_OBJS += cg_energy_restraints.o
+CG_ENERGY_OBJS += cg_boundary_str.o
+CG_ENERGY_OBJS += cg_pairlist_str.o
+CG_ENERGY_OBJS += cg_enefunc_str.o
+CG_ENERGY_OBJS += cg_energy_str.o
+CG_ENERGY_OBJS += cg_dynvars_str.o
+CG_ENERGY_OBJS += cg_restraints_str.o
+CG_ENERGY_OBJS += cg_domain_str.o
+CG_ENERGY_OBJS += fileio_control.o
+CG_ENERGY_OBJS += timers.o
+CG_ENERGY_OBJS += messages.o
+CG_ENERGY_OBJS += mpi_parallel.o
+CG_ENERGY_OBJS += constants.o
+CG_ENERGY_OBJS += math_libs.o
+CG_ENERGY_OBJS += string.o
+cg_energy.o: cg_energy.f90 $(CG_ENERGY_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy.f90: cg_energy.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_BASES_OBJS := cg_enefunc_str.o
+CG_ENERGY_BASES_OBJS += cg_domain_str.o
+CG_ENERGY_BASES_OBJS += timers.o
+CG_ENERGY_BASES_OBJS += mpi_parallel.o
+CG_ENERGY_BASES_OBJS += constants.o
+cg_energy_bases.o: cg_energy_bases.f90 $(CG_ENERGY_BASES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_bases.f90: cg_energy_bases.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_DIHEDRALS_OBJS := cg_enefunc_str.o
+CG_ENERGY_DIHEDRALS_OBJS += cg_domain_str.o
+CG_ENERGY_DIHEDRALS_OBJS += dihedral_libs.o
+CG_ENERGY_DIHEDRALS_OBJS += timers.o
+CG_ENERGY_DIHEDRALS_OBJS += messages.o
+CG_ENERGY_DIHEDRALS_OBJS += mpi_parallel.o
+CG_ENERGY_DIHEDRALS_OBJS += constants.o
+cg_energy_dihedrals.o: cg_energy_dihedrals.f90 $(CG_ENERGY_DIHEDRALS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_dihedrals.f90: cg_energy_dihedrals.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_ANGLES_OBJS := cg_enefunc_str.o
+CG_ENERGY_ANGLES_OBJS += cg_domain_str.o
+CG_ENERGY_ANGLES_OBJS += table_libs.o
+CG_ENERGY_ANGLES_OBJS += timers.o
+CG_ENERGY_ANGLES_OBJS += mpi_parallel.o
+CG_ENERGY_ANGLES_OBJS += constants.o
+cg_energy_angles.o: cg_energy_angles.f90 $(CG_ENERGY_ANGLES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_angles.f90: cg_energy_angles.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_BONDS_OBJS := cg_enefunc_str.o
+CG_ENERGY_BONDS_OBJS += cg_domain_str.o
+CG_ENERGY_BONDS_OBJS += timers.o
+CG_ENERGY_BONDS_OBJS += mpi_parallel.o
+CG_ENERGY_BONDS_OBJS += constants.o
+cg_energy_bonds.o: cg_energy_bonds.f90 $(CG_ENERGY_BONDS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_bonds.f90: cg_energy_bonds.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_GO_OBJS := cg_pairlist_str.o
+CG_ENERGY_GO_OBJS += cg_enefunc_str.o
+CG_ENERGY_GO_OBJS += cg_domain_str.o
+CG_ENERGY_GO_OBJS += timers.o
+CG_ENERGY_GO_OBJS += mpi_parallel.o
+CG_ENERGY_GO_OBJS += constants.o
+cg_energy_go.o: cg_energy_go.f90 $(CG_ENERGY_GO_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_go.f90: cg_energy_go.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_NONLOCAL_OBJS := cg_pairlist_str.o
+CG_ENERGY_NONLOCAL_OBJS += cg_enefunc_str.o
+CG_ENERGY_NONLOCAL_OBJS += cg_domain_str.o
+CG_ENERGY_NONLOCAL_OBJS += timers.o
+CG_ENERGY_NONLOCAL_OBJS += mpi_parallel.o
+CG_ENERGY_NONLOCAL_OBJS += constants.o
+cg_energy_nonlocal.o: cg_energy_nonlocal.f90 $(CG_ENERGY_NONLOCAL_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_nonlocal.f90: cg_energy_nonlocal.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_MARTINI_OBJS := cg_pairlist_str.o
+CG_ENERGY_MARTINI_OBJS += cg_enefunc_str.o
+CG_ENERGY_MARTINI_OBJS += cg_domain_str.o
+CG_ENERGY_MARTINI_OBJS += timers.o
+CG_ENERGY_MARTINI_OBJS += mpi_parallel.o
+CG_ENERGY_MARTINI_OBJS += constants.o
+cg_energy_martini.o: cg_energy_martini.f90 $(CG_ENERGY_MARTINI_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_martini.f90: cg_energy_martini.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_RESTRAINTS_OBJS := cg_rpath_str.o
+CG_ENERGY_RESTRAINTS_OBJS += cg_restraints_str.o
+CG_ENERGY_RESTRAINTS_OBJS += cg_enefunc_str.o
+CG_ENERGY_RESTRAINTS_OBJS += cg_enefunc_fit.o
+CG_ENERGY_RESTRAINTS_OBJS += cg_domain_str.o
+CG_ENERGY_RESTRAINTS_OBJS += cg_boundary_str.o
+CG_ENERGY_RESTRAINTS_OBJS += fitting.o
+CG_ENERGY_RESTRAINTS_OBJS += fitting_str.o
+CG_ENERGY_RESTRAINTS_OBJS += dihedral_libs.o
+CG_ENERGY_RESTRAINTS_OBJS += mpi_parallel.o
+CG_ENERGY_RESTRAINTS_OBJS += timers.o
+CG_ENERGY_RESTRAINTS_OBJS += messages.o
+CG_ENERGY_RESTRAINTS_OBJS += constants.o
+cg_energy_restraints.o: cg_energy_restraints.f90 $(CG_ENERGY_RESTRAINTS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_restraints.f90: cg_energy_restraints.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_RESTRAINTS_STR_OBJS := string.o
+CG_RESTRAINTS_STR_OBJS += messages.o
+cg_restraints_str.o: cg_restraints_str.f90 $(CG_RESTRAINTS_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_restraints_str.f90: cg_restraints_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_FIT_OBJS := cg_restraints_str.o
+CG_ENEFUNC_FIT_OBJS += cg_enefunc_str.o
+CG_ENEFUNC_FIT_OBJS += cg_domain_str.o
+CG_ENEFUNC_FIT_OBJS += molecules_str.o
+CG_ENEFUNC_FIT_OBJS += fitting.o
+CG_ENEFUNC_FIT_OBJS += fitting_str.o
+CG_ENEFUNC_FIT_OBJS += string.o
+CG_ENEFUNC_FIT_OBJS += select.o
+CG_ENEFUNC_FIT_OBJS += select_atoms.o
+CG_ENEFUNC_FIT_OBJS += select_atoms_str.o
+CG_ENEFUNC_FIT_OBJS += messages.o
+CG_ENEFUNC_FIT_OBJS += mpi_parallel.o
+CG_ENEFUNC_FIT_OBJS += constants.o
+cg_enefunc_fit.o: cg_enefunc_fit.f90 $(CG_ENEFUNC_FIT_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc_fit.f90: cg_enefunc_fit.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENERGY_STR_OBJS := messages.o
+CG_ENERGY_STR_OBJS += mpi_parallel.o
+CG_ENERGY_STR_OBJS += constants.o
+cg_energy_str.o: cg_energy_str.f90 $(CG_ENERGY_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_energy_str.f90: cg_energy_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DYNVARS_STR_OBJS := cg_energy_str.o
+CG_DYNVARS_STR_OBJS += messages.o
+CG_DYNVARS_STR_OBJS += constants.o
+cg_dynvars_str.o: cg_dynvars_str.f90 $(CG_DYNVARS_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_dynvars_str.f90: cg_dynvars_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_REMD_OBJS := cg_energy.o
+CG_REMD_OBJS += cg_energy_str.o
+CG_REMD_OBJS += cg_energy_restraints.o
+CG_REMD_OBJS += cg_md_leapfrog.o
+CG_REMD_OBJS += cg_md_vverlet.o
+CG_REMD_OBJS += cg_dynamics_str.o
+CG_REMD_OBJS += cg_dynvars_str.o
+CG_REMD_OBJS += cg_dynvars.o
+CG_REMD_OBJS += cg_ensemble_str.o
+CG_REMD_OBJS += cg_remd_str.o
+CG_REMD_OBJS += cg_restraints_str.o
+CG_REMD_OBJS += cg_boundary_str.o
+CG_REMD_OBJS += cg_boundary.o
+CG_REMD_OBJS += cg_pairlist_str.o
+CG_REMD_OBJS += cg_pairlist.o
+CG_REMD_OBJS += cg_enefunc_str.o
+CG_REMD_OBJS += cg_enefunc_restraints.o
+CG_REMD_OBJS += cg_output_str.o
+CG_REMD_OBJS += cg_output.o
+CG_REMD_OBJS += cg_domain_str.o
+CG_REMD_OBJS += cg_communicate_str.o
+CG_REMD_OBJS += cg_communicate.o
+CG_REMD_OBJS += molecules_str.o
+CG_REMD_OBJS += fileio_rst.o
+CG_REMD_OBJS += fileio_grotop.o
+CG_REMD_OBJS += fileio_control.o
+CG_REMD_OBJS += string.o
+CG_REMD_OBJS += random.o
+CG_REMD_OBJS += messages.o
+CG_REMD_OBJS += mpi_parallel.o
+CG_REMD_OBJS += constants.o
+cg_remd.o: cg_remd.f90 $(CG_REMD_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_remd.f90: cg_remd.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_MD_LEAPFROG_OBJS := cg_output.o
+CG_MD_LEAPFROG_OBJS += cg_update_domain.o
+CG_MD_LEAPFROG_OBJS += cg_assign_velocity.o
+CG_MD_LEAPFROG_OBJS += cg_dynvars.o
+CG_MD_LEAPFROG_OBJS += cg_communicate_str.o
+CG_MD_LEAPFROG_OBJS += cg_communicate.o
+CG_MD_LEAPFROG_OBJS += cg_domain.o
+CG_MD_LEAPFROG_OBJS += cg_energy.o
+CG_MD_LEAPFROG_OBJS += cg_output_str.o
+CG_MD_LEAPFROG_OBJS += cg_dynamics_str.o
+CG_MD_LEAPFROG_OBJS += cg_dynvars_str.o
+CG_MD_LEAPFROG_OBJS += cg_ensemble_str.o
+CG_MD_LEAPFROG_OBJS += cg_boundary_str.o
+CG_MD_LEAPFROG_OBJS += cg_pairlist_str.o
+CG_MD_LEAPFROG_OBJS += cg_enefunc_str.o
+CG_MD_LEAPFROG_OBJS += cg_domain_str.o
+CG_MD_LEAPFROG_OBJS += random.o
+CG_MD_LEAPFROG_OBJS += messages.o
+CG_MD_LEAPFROG_OBJS += fileio_grotop.o
+CG_MD_LEAPFROG_OBJS += molecules_str.o
+CG_MD_LEAPFROG_OBJS += timers.o
+CG_MD_LEAPFROG_OBJS += mpi_parallel.o
+CG_MD_LEAPFROG_OBJS += constants.o
+cg_md_leapfrog.o: cg_md_leapfrog.f90 $(CG_MD_LEAPFROG_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_md_leapfrog.f90: cg_md_leapfrog.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_MD_VVERLET_OBJS := cg_output.o
+CG_MD_VVERLET_OBJS += cg_update_domain.o
+CG_MD_VVERLET_OBJS += cg_assign_velocity.o
+CG_MD_VVERLET_OBJS += cg_dynvars.o
+CG_MD_VVERLET_OBJS += cg_communicate_str.o
+CG_MD_VVERLET_OBJS += cg_communicate.o
+CG_MD_VVERLET_OBJS += cg_energy.o
+CG_MD_VVERLET_OBJS += cg_output_str.o
+CG_MD_VVERLET_OBJS += cg_dynamics_str.o
+CG_MD_VVERLET_OBJS += cg_dynvars_str.o
+CG_MD_VVERLET_OBJS += cg_ensemble_str.o
+CG_MD_VVERLET_OBJS += cg_boundary_str.o
+CG_MD_VVERLET_OBJS += cg_pairlist_str.o
+CG_MD_VVERLET_OBJS += cg_enefunc_str.o
+CG_MD_VVERLET_OBJS += cg_domain_str.o
+CG_MD_VVERLET_OBJS += random.o
+CG_MD_VVERLET_OBJS += math_libs.o
+CG_MD_VVERLET_OBJS += messages.o
+CG_MD_VVERLET_OBJS += fileio_grotop.o
+CG_MD_VVERLET_OBJS += molecules_str.o
+CG_MD_VVERLET_OBJS += timers.o
+CG_MD_VVERLET_OBJS += mpi_parallel.o
+CG_MD_VVERLET_OBJS += constants.o
+cg_md_vverlet.o: cg_md_vverlet.f90 $(CG_MD_VVERLET_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_md_vverlet.f90: cg_md_vverlet.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_RPATH_OBJS := cg_energy.o
+CG_RPATH_OBJS += cg_energy_str.o
+CG_RPATH_OBJS += cg_energy_restraints.o
+CG_RPATH_OBJS += cg_md_leapfrog.o
+CG_RPATH_OBJS += cg_md_vverlet.o
+CG_RPATH_OBJS += cg_dynamics_str.o
+CG_RPATH_OBJS += cg_dynvars_str.o
+CG_RPATH_OBJS += cg_dynvars.o
+CG_RPATH_OBJS += cg_ensemble_str.o
+CG_RPATH_OBJS += cg_rpath_str.o
+CG_RPATH_OBJS += cg_restraints_str.o
+CG_RPATH_OBJS += cg_boundary_str.o
+CG_RPATH_OBJS += cg_boundary.o
+CG_RPATH_OBJS += cg_pairlist_str.o
+CG_RPATH_OBJS += cg_pairlist.o
+CG_RPATH_OBJS += cg_enefunc_str.o
+CG_RPATH_OBJS += cg_enefunc_restraints.o
+CG_RPATH_OBJS += dihedral_libs.o
+CG_RPATH_OBJS += timers.o
+CG_RPATH_OBJS += cg_output_str.o
+CG_RPATH_OBJS += cg_output.o
+CG_RPATH_OBJS += cg_domain_str.o
+CG_RPATH_OBJS += cg_communicate_str.o
+CG_RPATH_OBJS += cg_communicate.o
+CG_RPATH_OBJS += fitting_str.o
+CG_RPATH_OBJS += fitting.o
+CG_RPATH_OBJS += molecules_str.o
+CG_RPATH_OBJS += fileio_rst.o
+CG_RPATH_OBJS += fileio_top.o
+CG_RPATH_OBJS += fileio_par.o
+CG_RPATH_OBJS += fileio_gpr.o
+CG_RPATH_OBJS += fileio_pdb.o
+CG_RPATH_OBJS += fileio_psf.o
+CG_RPATH_OBJS += fileio_grotop.o
+CG_RPATH_OBJS += fileio_crd.o
+CG_RPATH_OBJS += fileio_mode.o
+CG_RPATH_OBJS += fileio_control.o
+CG_RPATH_OBJS += string.o
+CG_RPATH_OBJS += random.o
+CG_RPATH_OBJS += messages.o
+CG_RPATH_OBJS += mpi_parallel.o
+CG_RPATH_OBJS += constants.o
+cg_rpath.o: cg_rpath.f90 $(CG_RPATH_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_rpath.f90: cg_rpath.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_RESTRAINTS_OBJS := cg_restraints_str.o
+CG_RESTRAINTS_OBJS += select.o
+CG_RESTRAINTS_OBJS += select_atoms.o
+CG_RESTRAINTS_OBJS += select_atoms_str.o
+CG_RESTRAINTS_OBJS += molecules_str.o
+CG_RESTRAINTS_OBJS += fileio_control.o
+CG_RESTRAINTS_OBJS += string.o
+CG_RESTRAINTS_OBJS += messages.o
+CG_RESTRAINTS_OBJS += mpi_parallel.o
+cg_restraints.o: cg_restraints.f90 $(CG_RESTRAINTS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_restraints.f90: cg_restraints.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_MINIMIZE_OBJS := cg_output.o
+CG_MINIMIZE_OBJS += cg_update_domain.o
+CG_MINIMIZE_OBJS += cg_dynvars.o
+CG_MINIMIZE_OBJS += cg_energy.o
+CG_MINIMIZE_OBJS += cg_communicate_str.o
+CG_MINIMIZE_OBJS += cg_communicate.o
+CG_MINIMIZE_OBJS += cg_output_str.o
+CG_MINIMIZE_OBJS += cg_minimize_str.o
+CG_MINIMIZE_OBJS += cg_dynvars_str.o
+CG_MINIMIZE_OBJS += cg_boundary_str.o
+CG_MINIMIZE_OBJS += cg_pairlist_str.o
+CG_MINIMIZE_OBJS += cg_enefunc_str.o
+CG_MINIMIZE_OBJS += cg_domain_str.o
+CG_MINIMIZE_OBJS += fileio_control.o
+CG_MINIMIZE_OBJS += timers.o
+CG_MINIMIZE_OBJS += messages.o
+CG_MINIMIZE_OBJS += constants.o
+CG_MINIMIZE_OBJS += mpi_parallel.o
+cg_minimize.o: cg_minimize.f90 $(CG_minimize_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_minimize.f90: cg_minimize.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_SETUP_CGDYN_OBJS := cg_control.o
+CG_SETUP_CGDYN_OBJS += cg_restart.o
+CG_SETUP_CGDYN_OBJS += cg_output.o
+CG_SETUP_CGDYN_OBJS += cg_input.o
+CG_SETUP_CGDYN_OBJS += cg_minimize.o
+CG_SETUP_CGDYN_OBJS += cg_dynamics.o
+CG_SETUP_CGDYN_OBJS += cg_dynvars.o
+CG_SETUP_CGDYN_OBJS += cg_domain.o
+CG_SETUP_CGDYN_OBJS += cg_ensemble.o
+CG_SETUP_CGDYN_OBJS += cg_restraints.o
+CG_SETUP_CGDYN_OBJS += cg_boundary.o
+CG_SETUP_CGDYN_OBJS += cg_pairlist.o
+CG_SETUP_CGDYN_OBJS += cg_enefunc.o
+CG_SETUP_CGDYN_OBJS += cg_enefunc_fit.o
+CG_SETUP_CGDYN_OBJS += cg_energy.o
+CG_SETUP_CGDYN_OBJS += cg_communicate_str.o
+CG_SETUP_CGDYN_OBJS += cg_communicate.o
+CG_SETUP_CGDYN_OBJS += cg_output_str.o
+CG_SETUP_CGDYN_OBJS += cg_minimize_str.o
+CG_SETUP_CGDYN_OBJS += cg_dynamics_str.o
+CG_SETUP_CGDYN_OBJS += cg_dynvars_str.o
+CG_SETUP_CGDYN_OBJS += cg_ensemble_str.o
+CG_SETUP_CGDYN_OBJS += cg_restraints_str.o
+CG_SETUP_CGDYN_OBJS += cg_boundary_str.o
+CG_SETUP_CGDYN_OBJS += cg_pairlist_str.o
+CG_SETUP_CGDYN_OBJS += cg_enefunc_str.o
+CG_SETUP_CGDYN_OBJS += cg_energy_str.o
+CG_SETUP_CGDYN_OBJS += cg_domain_str.o
+CG_SETUP_CGDYN_OBJS += cg_remd_str.o
+CG_SETUP_CGDYN_OBJS += cg_rpath_str.o
+CG_SETUP_CGDYN_OBJS += cg_remd.o
+CG_SETUP_CGDYN_OBJS += cg_rpath.o
+CG_SETUP_CGDYN_OBJS += cg_migration.o
+CG_SETUP_CGDYN_OBJS += molecules.o
+CG_SETUP_CGDYN_OBJS += molecules_str.o
+CG_SETUP_CGDYN_OBJS += fitting.o
+CG_SETUP_CGDYN_OBJS += fitting_str.o
+CG_SETUP_CGDYN_OBJS += fileio_localres.o
+CG_SETUP_CGDYN_OBJS += fileio_grocrd.o
+CG_SETUP_CGDYN_OBJS += fileio_grotop.o
+CG_SETUP_CGDYN_OBJS += fileio_ambcrd.o
+CG_SETUP_CGDYN_OBJS += fileio_prmtop.o
+CG_SETUP_CGDYN_OBJS += fileio_top.o
+CG_SETUP_CGDYN_OBJS += fileio_par.o
+CG_SETUP_CGDYN_OBJS += fileio_gpr.o
+CG_SETUP_CGDYN_OBJS += fileio_psf.o
+CG_SETUP_CGDYN_OBJS += fileio_pdb.o
+CG_SETUP_CGDYN_OBJS += fileio_crd.o
+CG_SETUP_CGDYN_OBJS += fileio_rst.o
+CG_SETUP_CGDYN_OBJS += fileio_mode.o
+CG_SETUP_CGDYN_OBJS += messages.o
+CG_SETUP_CGDYN_OBJS += timers.o
+CG_SETUP_CGDYN_OBJS += mpi_parallel.o
+CG_SETUP_CGDYN_OBJS += constants.o
+cg_setup_cgdyn.o: cg_setup_cgdyn.f90 $(CG_SETUP_CGDYN_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_setup_cgdyn.f90: cg_setup_cgdyn.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_INPUT_OBJS := fileio_grocrd.o
+CG_INPUT_OBJS += fileio_grotop.o
+CG_INPUT_OBJS += fileio_ambcrd.o
+CG_INPUT_OBJS += fileio_prmtop.o
+CG_INPUT_OBJS += fileio_localres.o
+CG_INPUT_OBJS += fileio_psf.o
+CG_INPUT_OBJS += fileio_rst.o
+CG_INPUT_OBJS += fileio_str.o
+CG_INPUT_OBJS += fileio_par.o
+CG_INPUT_OBJS += fileio_top.o
+CG_INPUT_OBJS += fileio_crd.o
+CG_INPUT_OBJS += fileio_pdb.o
+CG_INPUT_OBJS += fileio_mode.o
+CG_INPUT_OBJS += fileio_control.o
+CG_INPUT_OBJS += string.o
+CG_INPUT_OBJS += messages.o
+CG_INPUT_OBJS += mpi_parallel.o
+cg_input.o: cg_input.f90 $(CG_INPUT_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_input.f90: cg_input.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+
+#-------------------------------------------------------------------------------
+CG_CONTROL_OBJS := cg_output.o
+CG_CONTROL_OBJS += cg_input.o
+CG_CONTROL_OBJS += cg_minimize.o
+CG_CONTROL_OBJS += cg_dynamics.o
+CG_CONTROL_OBJS += cg_ensemble.o
+CG_CONTROL_OBJS += cg_restraints.o
+CG_CONTROL_OBJS += cg_boundary.o
+CG_CONTROL_OBJS += cg_energy.o
+CG_CONTROL_OBJS += cg_remd.o
+CG_CONTROL_OBJS += cg_rpath.o
+CG_CONTROL_OBJS += select.o
+CG_CONTROL_OBJS += fitting.o
+CG_CONTROL_OBJS += fileio_control.o
+CG_CONTROL_OBJS += string.o
+CG_CONTROL_OBJS += messages.o
+CG_CONTROL_OBJS += mpi_parallel.o
+CG_CONTROL_OBJS += constants.o
+cg_control.o: cg_control.f90 $(CG_CONTROL_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_control.f90: cg_control.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DYNAMICS_OBJS := cg_output.o
+CG_DYNAMICS_OBJS += cg_md_leapfrog.o
+CG_DYNAMICS_OBJS += cg_md_vverlet.o
+CG_DYNAMICS_OBJS += cg_restraints.o
+CG_DYNAMICS_OBJS += cg_boundary.o
+CG_DYNAMICS_OBJS += cg_communicate_str.o
+CG_DYNAMICS_OBJS += cg_output_str.o
+CG_DYNAMICS_OBJS += cg_dynvars_str.o
+CG_DYNAMICS_OBJS += cg_ensemble_str.o
+CG_DYNAMICS_OBJS += cg_dynamics_str.o
+CG_DYNAMICS_OBJS += cg_restraints_str.o
+CG_DYNAMICS_OBJS += cg_pairlist_str.o
+CG_DYNAMICS_OBJS += cg_enefunc_str.o
+CG_DYNAMICS_OBJS += cg_boundary_str.o
+CG_DYNAMICS_OBJS += cg_domain_str.o
+CG_DYNAMICS_OBJS += molecules.o
+CG_DYNAMICS_OBJS += molecules_str.o
+CG_DYNAMICS_OBJS += fileio_grotop.o
+CG_DYNAMICS_OBJS += fileio_control.o
+CG_DYNAMICS_OBJS += random.o
+CG_DYNAMICS_OBJS += messages.o
+CG_DYNAMICS_OBJS += mpi_parallel.o
+CG_DYNAMICS_OBJS += constants.o
+cg_dynamics.o: cg_dynamics.f90 $(CG_DYNAMICS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_dynamics.f90: cg_dynamics.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DYNAMICS_STR := messages.o
+CG_DYNAMICS_STR += constants.o
+CG_DYNAMICS_STR += mpi_parallel.o
+cg_dynamics_str.o: cg_dynamics_str.f90 $(CG_DYNAMICS_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_dynamics_str.f90: cg_dynamics_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_REMD_STR_OBJS := messages.o
+CG_REMD_STR_OBJS += constants.o
+cg_remd_str.o: cg_remd_str.f90 $(CG_REMD_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_remd_str.f90: cg_remd_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_MINIMIZE_STR_OBJS := constants.o
+cg_minimize_str.o: cg_minimize_str.f90 $(CG_MINIMIZE_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_minimize_str.f90: cg_minimize_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENSEMBLE_OBJS := constants.o
+cg_ensemble_str.o: cg_ensemble_str.f90 $(CG_ENSEMBLE_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_ensemble_str.f90: cg_ensemble_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DYNVARS_OBJS := cg_output_str.o
+CG_DYNVARS_OBJS += cg_dynamics_str.o
+CG_DYNVARS_OBJS += cg_dynvars_str.o
+CG_DYNVARS_OBJS += cg_ensemble_str.o
+CG_DYNVARS_OBJS += cg_boundary_str.o
+CG_DYNVARS_OBJS += cg_enefunc_str.o
+CG_DYNVARS_OBJS += cg_domain_str.o
+CG_DYNVARS_OBJS += molecules_str.o
+CG_DYNVARS_OBJS += messages.o
+CG_DYNVARS_OBJS += mpi_parallel.o
+CG_DYNVARS_OBJS += constants.o
+cg_dynvars.o: cg_dynvars.f90 $(CG_DYNVARS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_dynvars.f90: cg_dynvars.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_OUTPUT_OBJS := cg_dynvars.o
+CG_OUTPUT_OBJS += cg_output_str.o
+CG_OUTPUT_OBJS += cg_minimize_str.o
+CG_OUTPUT_OBJS += cg_dynamics_str.o
+CG_OUTPUT_OBJS += cg_dynvars_str.o
+CG_OUTPUT_OBJS += cg_ensemble_str.o
+CG_OUTPUT_OBJS += cg_boundary_str.o
+CG_OUTPUT_OBJS += cg_enefunc_str.o
+CG_OUTPUT_OBJS += cg_domain_str.o
+CG_OUTPUT_OBJS += cg_remd_str.o
+CG_OUTPUT_OBJS += cg_rpath_str.o
+CG_OUTPUT_OBJS += molecules_str.o
+CG_OUTPUT_OBJS += fileio_control.o
+CG_OUTPUT_OBJS += fileio_rst.o
+CG_OUTPUT_OBJS += fileio.o
+CG_OUTPUT_OBJS += string.o
+CG_OUTPUT_OBJS += random.o
+CG_OUTPUT_OBJS += messages.o
+CG_OUTPUT_OBJS += mpi_parallel.o
+CG_OUTPUT_OBJS += constants.o
+cg_output.o: cg_output.f90 $(CG_OUTPUT_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_output.f90: cg_output.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_OUTPUT_STR_OBJS := string.o
+CG_OUTPUT_STR_OBJS += messages.o
+cg_output_str.o: cg_output_str.f90 $(CG_OUTPUT_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_output_str.f90: cg_output_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_RPATH_STR_OBJS := cg_output_str.o
+CG_RPATH_STR_OBJS += molecules_str.o
+CG_RPATH_STR_OBJS += messages.o
+CG_RPATH_STR_OBJS += constants.o
+cg_rpath_str.o: cg_rpath_str.f90 $(CG_RPATH_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_rpath_str.f90: cg_rpath_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_PAIRLIST_STR_OBJS := messages.o
+CG_PAIRLIST_STR_OBJS += mpi_parallel.o
+CG_PAIRLIST_STR_OBJS += constants.o
+cg_pairlist_str.o: cg_pairlist_str.f90 $(CG_PAIRLIST_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_pairlist_str.f90: cg_pairlist_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_STR_OBJS := cg_domain_str.o
+CG_ENEFUNC_STR_OBJS += messages.o
+CG_ENEFUNC_STR_OBJS += constants.o
+cg_enefunc_str.o: cg_enefunc_str.f90 $(CG_ENEFUNC_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc_str.f90: cg_enefunc_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DOMAIN_STR_OBJS := messages.o
+CG_DOMAIN_STR_OBJS += mpi_parallel.o
+CG_DOMAIN_STR_OBJS += constants.o
+cg_domain_str.o: cg_domain_str.f90 $(CG_DOMAIN_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_domain_str.f90: cg_domain_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_BOUNDARY_STR_OBJS := messages.o
+CG_BOUNDARY_STR_OBJS += constants.o
+cg_boundary_str.o: cg_boundary_str.f90 $(CG_BOUNDARY_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_boundary_str.f90: cg_boundary_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_BOUNDARY_OBJS := cg_ensemble_str.o
+CG_BOUNDARY_OBJS += cg_boundary_str.o
+CG_BOUNDARY_OBJS += cg_enefunc_str.o
+CG_BOUNDARY_OBJS += cg_energy.o
+CG_BOUNDARY_OBJS += molecules_str.o
+CG_BOUNDARY_OBJS += fileio_rst.o
+CG_BOUNDARY_OBJS += fileio_control.o
+CG_BOUNDARY_OBJS += messages.o
+CG_BOUNDARY_OBJS += mpi_parallel.o
+CG_BOUNDARY_OBJS += constants.o
+cg_boundary.o: cg_boundary.f90 $(CG_BOUNDARY_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_boundary.f90: cg_boundary.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_COMMUNICATE_OBJS := cg_boundary_str.o
+CG_COMMUNICATE_OBJS += cg_enefunc_str.o
+CG_COMMUNICATE_OBJS += cg_domain_str.o
+CG_COMMUNICATE_OBJS += cg_communicate_str.o
+CG_COMMUNICATE_OBJS += timers.o
+CG_COMMUNICATE_OBJS += messages.o
+CG_COMMUNICATE_OBJS += mpi_parallel.o
+CG_COMMUNICATE_OBJS += constants.o
+cg_communicate.o: cg_communicate.f90 $(CG_COMMUNICATE_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_communicate.f90: cg_communicate.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_COMMUNICATE_STR_OBJS := cg_boundary_str.o
+CG_COMMUNICATE_STR_OBJS += cg_enefunc_str.o
+CG_COMMUNICATE_STR_OBJS += cg_domain_str.o
+CG_COMMUNICATE_STR_OBJS += cg_communicate_str.o
+CG_COMMUNICATE_STR_OBJS += timers.o
+CG_COMMUNICATE_STR_OBJS += messages.o
+CG_COMMUNICATE_STR_OBJS += mpi_parallel.o
+CG_COMMUNICATE_STR_OBJS += constants.o
+cg_communicate_str.o: cg_communicate_str.f90 $(CG_COMMUNICATE_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_communicate_str.f90: cg_communicate_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_DOMAIN_OBJS := cg_boundary.o
+CG_DOMAIN_OBJS += cg_energy.o
+CG_DOMAIN_OBJS += cg_communicate.o
+CG_DOMAIN_OBJS += cg_dynvars_str.o
+CG_DOMAIN_OBJS += cg_ensemble_str.o
+CG_DOMAIN_OBJS += cg_boundary_str.o
+CG_DOMAIN_OBJS += cg_pairlist_str.o
+CG_DOMAIN_OBJS += cg_enefunc_str.o
+CG_DOMAIN_OBJS += cg_domain_str.o
+CG_DOMAIN_OBJS += molecules_str.o
+CG_DOMAIN_OBJS += molecules.o
+CG_DOMAIN_OBJS += timers.o
+CG_DOMAIN_OBJS += random.o
+CG_DOMAIN_OBJS += messages.o
+CG_DOMAIN_OBJS += mpi_parallel.o
+CG_DOMAIN_OBJS += constants.o
+cg_domain.o: cg_domain.f90 $(CG_DOMAIN_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_domain.f90: cg_domain.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_UPDATE_DOMAIN_OBJS := cg_domain.o
+CG_UPDATE_DOMAIN_OBJS += cg_pairlist.o
+CG_UPDATE_DOMAIN_OBJS += cg_enefunc.o
+CG_UPDATE_DOMAIN_OBJS += cg_communicate_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_communicate.o
+CG_UPDATE_DOMAIN_OBJS += cg_migration.o
+CG_UPDATE_DOMAIN_OBJS += cg_minimize_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_dynamics_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_boundary_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_pairlist_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_enefunc_str.o
+CG_UPDATE_DOMAIN_OBJS += cg_domain_str.o
+CG_UPDATE_DOMAIN_OBJS += timers.o
+CG_UPDATE_DOMAIN_OBJS += messages.o
+CG_UPDATE_DOMAIN_OBJS += mpi_parallel.o
+CG_UPDATE_DOMAIN_OBJS += fileio_grotop.o
+CG_UPDATE_DOMAIN_OBJS += molecules_str.o
+CG_UPDATE_DOMAIN_OBJS += constants.o
+cg_update_domain.o: cg_update_domain.f90 $(CG_UPDATE_DOMAIN_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_update_domain.f90: cg_update_domain.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_PAIRLIST_OBJS := cg_pairlist_str.o
+CG_PAIRLIST_OBJS += cg_boundary_str.o
+CG_PAIRLIST_OBJS += cg_enefunc_str.o
+CG_PAIRLIST_OBJS += cg_domain_str.o
+CG_PAIRLIST_OBJS += cg_energy_str.o
+CG_PAIRLIST_OBJS += molecules_str.o
+CG_PAIRLIST_OBJS += timers.o
+CG_PAIRLIST_OBJS += messages.o
+CG_PAIRLIST_OBJS += mpi_parallel.o
+CG_PAIRLIST_OBJS += constants.o
+cg_pairlist.o: cg_pairlist.f90 $(CG_PAIRLIST_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_pairlist.f90: cg_pairlist.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_OBJS := cg_enefunc_gromacs.o
+CG_ENEFUNC_OBJS += cg_enefunc_localres.o
+CG_ENEFUNC_OBJS += cg_communicate_str.o
+CG_ENEFUNC_OBJS += cg_communicate.o
+CG_ENEFUNC_OBJS += cg_migration.o
+CG_ENEFUNC_OBJS += cg_energy.o
+CG_ENEFUNC_OBJS += cg_restraints_str.o
+CG_ENEFUNC_OBJS += cg_enefunc_str.o
+CG_ENEFUNC_OBJS += cg_energy_str.o
+CG_ENEFUNC_OBJS += cg_domain_str.o
+CG_ENEFUNC_OBJS += molecules_str.o
+CG_ENEFUNC_OBJS += fileio_localres.o
+CG_ENEFUNC_OBJS += fileio_grotop.o
+CG_ENEFUNC_OBJS += fileio_prmtop.o
+CG_ENEFUNC_OBJS += fileio_par.o
+CG_ENEFUNC_OBJS += timers.o
+CG_ENEFUNC_OBJS += messages.o
+CG_ENEFUNC_OBJS += mpi_parallel.o
+CG_ENEFUNC_OBJS += constants.o
+cg_enefunc.o: cg_enefunc.f90 $(CG_ENEFUNC_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc.f90: cg_enefunc.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_GROMACS_OBJS := cg_enefunc_restraints.o
+CG_ENEFUNC_GROMACS_OBJS += cg_energy.o
+CG_ENEFUNC_GROMACS_OBJS += cg_restraints_str.o
+CG_ENEFUNC_GROMACS_OBJS += cg_enefunc_str.o
+CG_ENEFUNC_GROMACS_OBJS += cg_energy_str.o
+CG_ENEFUNC_GROMACS_OBJS += cg_domain_str.o
+CG_ENEFUNC_GROMACS_OBJS += cg_communicate_str.o
+CG_ENEFUNC_GROMACS_OBJS += molecules_str.o
+CG_ENEFUNC_GROMACS_OBJS += table_libs.o
+CG_ENEFUNC_GROMACS_OBJS += fileio_grotop.o
+CG_ENEFUNC_GROMACS_OBJS += timers.o
+CG_ENEFUNC_GROMACS_OBJS += messages.o
+CG_ENEFUNC_GROMACS_OBJS += mpi_parallel.o
+CG_ENEFUNC_GROMACS_OBJS += constants.o
+cg_enefunc_gromacs.o: cg_enefunc_gromacs.f90 $(CG_ENEFUNC_GROMACS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc_gromacs.f90: cg_enefunc_gromacs.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_RESTRAINTS_OBJS := cg_restraints_str.o
+CG_ENEFUNC_RESTRAINTS_OBJS += cg_enefunc_str.o
+CG_ENEFUNC_RESTRAINTS_OBJS += cg_domain_str.o
+CG_ENEFUNC_RESTRAINTS_OBJS += molecules_str.o
+CG_ENEFUNC_RESTRAINTS_OBJS += string.o
+CG_ENEFUNC_RESTRAINTS_OBJS += messages.o
+CG_ENEFUNC_RESTRAINTS_OBJS += mpi_parallel.o
+CG_ENEFUNC_RESTRAINTS_OBJS += constants.o
+cg_enefunc_restraints.o: cg_enefunc_restraints.f90 $(CG_ENEFUNC_RESTRAINTS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc_restraints.f90: cg_enefunc_restraints.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENEFUNC_LOCALRES_OBJS := cg_enefunc_str.o
+CG_ENEFUNC_LOCALRES_OBJS += cg_domain_str.o
+CG_ENEFUNC_LOCALRES_OBJS += fileio_localres.o
+CG_ENEFUNC_LOCALRES_OBJS += messages.o
+CG_ENEFUNC_LOCALRES_OBJS += mpi_parallel.o
+CG_ENEFUNC_LOCALRES_OBJS += constants.o
+cg_enefunc_localres.o: cg_enefunc_localres.f90 $(CG_ENEFUNC_LOCALRES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_enefunc_localres.f90: cg_enefunc_localres.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ENSEMBLE_OBJS := cg_dynamics_str.o
+CG_ENSEMBLE_OBJS += cg_ensemble_str.o
+CG_ENSEMBLE_OBJS += cg_enefunc_str.o
+CG_ENSEMBLE_OBJS += fileio_control.o
+CG_ENSEMBLE_OBJS += messages.o
+CG_ENSEMBLE_OBJS += mpi_parallel.o
+CG_ENSEMBLE_OBJS += constants.o
+cg_ensemble.o: cg_ensemble.f90 $(CG_ENSEMBLE_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_ensemble.f90: cg_ensemble.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_RESTART_OBJS := cg_dynvars_str.o
+CG_RESTART_OBJS += cg_dynamics_str.o
+CG_RESTART_OBJS += molecules_str.o
+CG_RESTART_OBJS += fileio_rst.o
+CG_RESTART_OBJS += random.o
+CG_RESTART_OBJS += messages.o
+CG_RESTART_OBJS += mpi_parallel.o
+cg_restart.o: cg_restart.f90 $(CG_RESTART_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_restart.f90: cg_restart.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_MIGRATION_OBJS := cg_boundary_str.o
+CG_MIGRATION_OBJS += cg_enefunc_str.o
+CG_MIGRATION_OBJS += cg_domain_str.o
+CG_MIGRATION_OBJS += messages.o
+CG_MIGRATION_OBJS += mpi_parallel.o
+CG_MIGRATION_OBJS += constants.o
+cg_migration.o: cg_migration.f90 $(CG_MIGRATION_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_migration.f90: cg_migration.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CG_ASSIGN_VELOCITY_OBJS := random.o
+CG_ASSIGN_VELOCITY_OBJS += messages.o
+CG_ASSIGN_VELOCITY_OBJS += mpi_parallel.o
+CG_ASSIGN_VELOCITY_OBJS += constants.o
+CG_ASSIGN_VELOCITY_OBJS += cg_dynvars.o
+CG_ASSIGN_VELOCITY_OBJS += cg_domain_str.o
+CG_ASSIGN_VELOCITY_OBJS += cg_dynamics_str.o
+cg_assign_velocity.o: cg_assign_velocity.f90 $(CG_ASSIGN_VELOCITY_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+cg_assign_velocity.f90: cg_assign_velocity.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+MESSAGES_OBJS := mpi_parallel.o
+messages.o: messages.f90 $(MESSAGES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+messages.f90: ../lib/messages.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+MPI_PARALLEL_OBJS := 
+mpi_parallel.o: mpi_parallel.f90 $(MPI_PARALLEL_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+mpi_parallel.f90: ../lib/mpi_parallel.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+HARDWAREINFO_OBJS := fileio_str.o
+HARDWAREINFO_OBJS += fileio.o
+HARDWAREINFO_OBJS += string.o
+HARDWAREINFO_OBJS += constants.o
+HARDWAREINFO_OBJS += messages.o
+hardwareinfo.o: hardwareinfo.f90 $(HARDWAREINFO_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+hardwareinfo.f90: ../lib/hardwareinfo.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+CONSTANTS_OBJS := 
+constants.o: constants.f90 $(CONSTANTS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+constants.f90: ../lib/constants.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+TIMERS_OBJS := messages.o
+TIMERS_OBJS += mpi_parallel.o
+TIMERS_OBJS += constants.o
+timers.o: timers.f90 $(TIMERS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+timers.f90: ../lib/timers.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+DIHEDRAL_LIBS_OBJS := fileio_par.o
+DIHEDRAL_LIBS_OBJS += fileio_prmtop.o
+DIHEDRAL_LIBS_OBJS += messages.o
+DIHEDRAL_LIBS_OBJS += mpi_parallel.o
+DIHEDRAL_LIBS_OBJS += constants.o
+dihedral_libs.o: dihedral_libs.f90 $(DIHEDRAL_LIBS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+dihedral_libs.f90: ../lib/dihedral_libs.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_PAR_OBJS := fileio_top.o
+FILEIO_PAR_OBJS += fileio.o
+FILEIO_PAR_OBJS += string.o
+FILEIO_PAR_OBJS += messages.o
+FILEIO_PAR_OBJS += mpi_parallel.o
+FILEIO_PAR_OBJS += constants.o
+fileio_par.o: fileio_par.f90 $(FILEIO_PAR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_par.f90: ../lib/fileio_par.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_TOP_OBJS := fileio.o
+FILEIO_TOP_OBJS += string.o
+FILEIO_TOP_OBJS += messages.o
+FILEIO_TOP_OBJS += mpi_parallel.o
+FILEIO_TOP_OBJS += constants.o
+fileio_top.o: fileio_top.f90 $(FILEIO_TOP_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_top.f90: ../lib/fileio_top.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_OBJS := constants.o
+FILEIO_OBJS += messages.o
+FILEIO_OBJS += string.o
+FILEIO_OBJS += mpi_parallel.o
+fileio.o: fileio.f90 $(FILEIO_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio.f90: ../lib/fileio.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_LOCALRES_OBJS := fileio.o
+FILEIO_LOCALRES_OBJS += string.o
+FILEIO_LOCALRES_OBJS += messages.o
+FILEIO_LOCALRES_OBJS += mpi_parallel.o
+FILEIO_LOCALRES_OBJS += constants.o
+fileio_localres.o: fileio_localres.f90 $(FILEIO_LOCALRES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_localres.f90: ../lib/fileio_localres.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+STRING_OBJS := messages.o
+STRING_OBJS += constants.o
+string.o: string.f90 $(STRING_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+string.f90: ../lib/string.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_RST_OBJS := fileio_data.o
+FILEIO_RST_OBJS += fileio.o
+FILEIO_RST_OBJS += messages.o
+FILEIO_RST_OBJS += mpi_parallel.o
+FILEIO_RST_OBJS += constants.o
+fileio_rst.o: fileio_rst.f90 $(FILEIO_RST_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_rst.f90: ../lib/fileio_rst.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_GPR_OBJS := fileio.o
+FILEIO_GPR_OBJS += messages.o
+FILEIO_GPR_OBJS += mpi_parallel.o
+FILEIO_GPR_OBJS += constants.o
+fileio_gpr.o: fileio_gpr.f90 $(FILEIO_GPR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_gpr.f90: ../lib/fileio_gpr.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_PSF_OBJS := fileio.o
+FILEIO_PSF_OBJS += messages.o
+FILEIO_PSF_OBJS += mpi_parallel.o
+FILEIO_PSF_OBJS += constants.o
+fileio_psf.o: fileio_psf.f90 $(FILEIO_PSF_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_psf.f90: ../lib/fileio_psf.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_CRD_OBJS := fileio.o
+FILEIO_CRD_OBJS += string.o
+FILEIO_CRD_OBJS += messages.o
+FILEIO_CRD_OBJS += mpi_parallel.o
+FILEIO_CRD_OBJS += constants.o
+fileio_crd.o: fileio_crd.f90 $(FILEIO_CRD_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_crd.f90: ../lib/fileio_crd.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_AMBCRD_OBJS := fileio.o
+FILEIO_AMBCRD_OBJS += messages.o
+FILEIO_AMBCRD_OBJS += string.o
+FILEIO_AMBCRD_OBJS += mpi_parallel.o
+FILEIO_AMBCRD_OBJS += constants.o
+fileio_ambcrd.o: fileio_ambcrd.f90 $(FILEIO_AMBCRD_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_ambcrd.f90: ../lib/fileio_ambcrd.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_GROTOP_OBJS := fileio_gropp.o
+FILEIO_GROTOP_OBJS += fileio.o
+FILEIO_GROTOP_OBJS += string.o
+FILEIO_GROTOP_OBJS += messages.o
+FILEIO_GROTOP_OBJS += mpi_parallel.o
+FILEIO_GROTOP_OBJS += constants.o
+fileio_grotop.o: fileio_grotop.f90 $(FILEIO_GROTOP_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_grotop.f90: ../lib/fileio_grotop.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_GROPP_OBJS := fileio.o
+FILEIO_GROPP_OBJS += string.o
+FILEIO_GROPP_OBJS += messages.o
+FILEIO_GROPP_OBJS += mpi_parallel.o
+fileio_gropp.o: fileio_gropp.f90 $(FILEIO_GROPP_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_gropp.f90: ../lib/fileio_gropp.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_GROCRD_OBJS := fileio.o
+FILEIO_GROCRD_OBJS += string.o
+FILEIO_GROCRD_OBJS += messages.o
+FILEIO_GROCRD_OBJS += constants.o
+fileio_grocrd.o: fileio_grocrd.f90 $(FILEIO_GROCRD_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_grocrd.f90: ../lib/fileio_grocrd.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_PDB_OBJS := fileio.o
+FILEIO_PDB_OBJS += messages.o
+FILEIO_PDB_OBJS += mpi_parallel.o
+FILEIO_PDB_OBJS += constants.o
+fileio_pdb.o: fileio_pdb.f90 $(FILEIO_PDB_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_pdb.f90: ../lib/fileio_pdb.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_DATA_OBJS := fileio.o
+FILEIO_DATA_OBJS += string.o
+FILEIO_DATA_OBJS += messages.o
+FILEIO_DATA_OBJS += mpi_parallel.o
+FILEIO_DATA_OBJS += constants.o
+fileio_data.o: fileio_data.f90 $(FILEIO_DATA_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_data.f90: ../lib/fileio_data.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_PRMTOP := fileio.o
+FILEIO_PRMTOP += messages.o
+FILEIO_PRMTOP += mpi_parallel.o
+FILEIO_PRMTOP += constants.o
+fileio_prmtop.o: fileio_prmtop.f90 $(FILEIO_PRMTOP_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_prmtop.f90: ../lib/fileio_prmtop.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_STR_OBJS := fileio_par.o
+FILEIO_STR_OBJS += fileio_top.o
+FILEIO_STR_OBJS += fileio.o
+FILEIO_STR_OBJS += string.o
+FILEIO_STR_OBJS += messages.o
+FILEIO_STR_OBJS += mpi_parallel.o
+FILEIO_STR_OBJS += constants.o
+fileio_str.o: fileio_str.f90 $(FILEIO_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_str.f90: ../lib/fileio_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_CONTROL_OBJS := fileio.o
+FILEIO_CONTROL_OBJS += string.o
+FILEIO_CONTROL_OBJS += messages.o
+FILEIO_CONTROL_OBJS += constants.o
+FILEIO_CONTROL_OBJS += mpi_parallel.o
+fileio_control.o: fileio_control.f90 $(FILEIO_CONTROL_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_control.f90: ../lib/fileio_control.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FILEIO_MODE_OBJS := fileio.o
+FILEIO_MODE_OBJS += messages.o
+FILEIO_MODE_OBJS += mpi_parallel.o
+FILEIO_MODE_OBJS += constants.o
+fileio_mode.o: fileio_mode.f90 $(FILEIO_MODE_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fileio_mode.f90: ../lib/fileio_mode.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+TABLE_LIBS_OBJS := math_libs.o
+TABLE_LIBS_OBJS += messages.o
+TABLE_LIBS_OBJS += mpi_parallel.o
+TABLE_LIBS_OBJS += constants.o
+table_libs.o: table_libs.f90 $(TABLE_LIBS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+table_libs.f90: ../lib/table_libs.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+MATH_LIBS_OBJS := constants.o
+MATH_LIBS_OBJS += random.o
+math_libs.o: math_libs.f90 $(MATH_LIBS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+math_libs.f90: ../lib/math_libs.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+RANDOM_OBJS := messages.o
+RANDOM_OBJS += dSFMT.o
+RANDOM_OBJS += dSFMT_if.o
+RANDOM_OBJS += constants.o
+RANDOM_OBJS += mpi_parallel.o
+random.o: random.f90 $(RANDOM_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+random.f90: ../lib/random.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+MOLECULES_STR_OBJS := messages.o
+MOLECULES_STR_OBJS += constants.o
+molecules_str.o: molecules_str.f90 $(MOLECULES_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+molecules_str.f90: ../lib/molecules_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FITTING_OBJS := fitting_str.o
+FITTING_OBJS += select.o
+FITTING_OBJS += select_atoms.o
+FITTING_OBJS += molecules_str.o
+FITTING_OBJS += messages.o
+FITTING_OBJS += fileio_control.o
+FITTING_OBJS += mpi_parallel.o
+FITTING_OBJS += constants.o
+FITTING_OBJS += mpi_parallel.o
+fitting.o: fitting.f90 $(FITTING_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fitting.f90: ../lib/fitting.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+FITTING_STR_OBJS := select_atoms_str.o
+FITTING_STR_OBJS += messages.o
+FITTING_STR_OBJS += constants.o
+fitting_str.o: fitting_str.f90 $(FITTING_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+fitting_str.f90: ../lib/fitting_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+SELECT_ATOMS_STR_OBJS := messages.o
+SELECT_ATOMS_STR_OBJS += mpi_parallel.o
+select_atoms_str.o: select_atoms_str.f90 $(SELECT_ATOMS_STR_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select_atoms_str.f90: ../lib/select_atoms_str.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+SELECT_ATOMS_OBJS := select_contacts.o
+SELECT_ATOMS_OBJS += select_parser.o
+SELECT_ATOMS_OBJS += select_atoms_str.o
+SELECT_ATOMS_OBJS += molecules_str.o
+SELECT_ATOMS_OBJS += string.o
+SELECT_ATOMS_OBJS += messages.o
+SELECT_ATOMS_OBJS += mpi_parallel.o
+SELECT_ATOMS_OBJS += constants.o
+select_atoms.o: select_atoms.f90 $(SELECT_ATOMS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select_atoms.f90: ../lib/select_atoms.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+SELECT_CONTACTS_OBJS := molecules_str.o
+SELECT_CONTACTS_OBJS += select_atoms_str.o
+SELECT_CONTACTS_OBJS += messages.o
+SELECT_CONTACTS_OBJS += mpi_parallel.o
+SELECT_CONTACTS_OBJS += constants.o
+select_contacts.o: select_contacts.f90 $(SELECT_CONTACTS_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select_contacts.f90: ../lib/select_contacts.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+SELECT_PARSER_OBJS := select_lexer.o
+SELECT_PARSER_OBJS += select_atoms_str.o
+SELECT_PARSER_OBJS += string.o
+SELECT_PARSER_OBJS += messages.o
+SELECT_PARSER_OBJS += mpi_parallel.o
+select_parser.o: select_parser.f90 $(SELECT_PARSER_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select_parser.f90: ../lib/select_parser.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+SELECT_LEXER_OBJS := string.o
+select_lexer.o: select_lexer.f90 $(SELECT_LEXER_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select_lexer.f90: ../lib/select_lexer.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+
+#-------------------------------------------------------------------------------
+SELECT_OBJS := molecules_str.o
+SELECT_OBJS += fileio_control.o
+SELECT_OBJS += string.o
+SELECT_OBJS += messages.o
+SELECT_OBJS += mpi_parallel.o
+select.o: select.f90 $(SELECT_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+select.f90: ../lib/select.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+MOLECULES_OBJS := fileio_top.o
+MOLECULES_OBJS += fileio_par.o
+MOLECULES_OBJS += fileio_gpr.o
+MOLECULES_OBJS += fileio_pdb.o
+MOLECULES_OBJS += fileio_psf.o
+MOLECULES_OBJS += fileio_crd.o
+MOLECULES_OBJS += fileio_prmtop.o
+MOLECULES_OBJS += fileio_ambcrd.o
+MOLECULES_OBJS += fileio_grotop.o
+MOLECULES_OBJS += fileio_grocrd.o
+MOLECULES_OBJS += fileio_mode.o
+MOLECULES_OBJS += select_atoms_str.o
+MOLECULES_OBJS += molecules_str.o
+MOLECULES_OBJS += messages.o
+MOLECULES_OBJS += mpi_parallel.o
+MOLECULES_OBJS += constants.o
+molecules.o: molecules.f90 $(MOLECULES_OBJS)
+	$(FC) $(FCFLAGS) -c $<
+molecules.f90: ../lib/molecules.fpp
+	$(PP) $(PPFLAGS) $^ > $@
+
+#-------------------------------------------------------------------------------
+DSFMT_INCD := ../lib/dSFMT
+DSFMT_OBJS := 
+dSFMT.o: ../lib/dSFMT/dSFMT.c $(DSFMT_OBJS)
+	$(CC) $(CCFLAGS) -c $^ -I$(DSFMT_INCD)
+
+#-------------------------------------------------------------------------------
+DSFMT_IF_INCD := ../lib/dSFMT
+DSFMT_IF_OBJS := 
+dSFMT_if.o: ../lib/dSFMT/dSFMT_if.c $(DSFMT_IF_OBJS)
+	$(CC) $(CCFLAGS) -c $^ -I$(DSFMT_IF_INCD)
+
+#-------------------------------------------------------------------------------
+# Phonies
+#-------------------------------------------------------------------------------
+.PHONY: clean
+clean:
+	-rm -f *.o *.mod *.f90 cgdyn
