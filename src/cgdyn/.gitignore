@@ -1,3 +1,5 @@
+*.i
 *.o
 *.mod
 *.f90
+cgdyn

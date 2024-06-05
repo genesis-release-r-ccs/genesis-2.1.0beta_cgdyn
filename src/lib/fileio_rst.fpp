@@ -1077,6 +1077,8 @@ contains
     integer                  :: i
     character(HeaderLength)  :: head1, head2
     character(24)            :: name, date
+    integer :: length, istatus
+    logical :: trim_name
 
 
     ! check memory allocation
@@ -1089,7 +1091,7 @@ contains
     ! make header
     !
     call fdate(date)
-    call getlog(name)
+    call get_environment_variable("USER", name, length, istatus, trim_name)
 
     head1 = 'REMARKS CREATED BY GENESIS                                                      '
     head2 = 'REMARKS DATE: ' // date // ' CREATED BY USER: ' // name
@@ -1202,6 +1204,8 @@ contains
     integer                  :: i, dummy
     character(HeaderLength)  :: head1, head2
     character(24)            :: name, date
+    integer :: length, istatus
+    logical :: trim_name
 
 
     ! check memory allocation
@@ -1214,7 +1218,7 @@ contains
     ! make header
     !
     call fdate(date)
-    call getlog(name)
+    call get_environment_variable("USER", name, length, istatus, trim_name)
 
     head1 = 'REMARKS CREATED BY GENESIS                                                      '
     head2 = 'REMARKS DATE: ' // date // ' CREATED BY USER: ' // name

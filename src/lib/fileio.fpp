@@ -103,7 +103,7 @@ contains
 
     else if (in_out == IOFileOutputAppend) then
       open(unit_no, file=filename, status='unknown', form='formatted', &
-                    access='append', err=904)
+                    position='append', err=904)
 
     endif
 

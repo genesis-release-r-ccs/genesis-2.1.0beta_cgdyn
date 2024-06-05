@@ -1369,6 +1369,8 @@ contains
     integer(4)               :: icntrl(20)
     character(80)            :: title(4)
     character(24)            :: name, date
+    integer :: length, istatus
+    logical :: trim_name
 
     integer,         pointer :: ncell, natom_all, natom(:), id_l2g(:)
 
@@ -1415,7 +1417,7 @@ contains
       icntrl(20) = 24                           ! PRETEND TO BE CHARMM24 -JCP
 
       call fdate (date)
-      call getlog(name)
+      call get_environment_variable("USER", name, length, istatus, trim_name)
 
       title(1) = 'REMARKS CREATED BY GENESIS                                                      '
       title(2) = 'REMARKS DATE: ' // date // ' CREATED BY USER: ' // name
@@ -1489,6 +1491,9 @@ contains
     character(80)            :: title(4)
     character(24)            :: name, date
 
+    integer :: length, istatus
+    logical :: trim_name
+
     integer,         pointer :: ncell, natom_all, natom(:), id_l2g(:)
 
 
@@ -1537,7 +1542,7 @@ contains
       icntrl(20) = 24                           ! PRETEND TO BE CHARMM24 -JCP
 
       call fdate (date)
-      call getlog(name)
+      call get_environment_variable("USER", name, length, istatus, trim_name)
 
       title(1) = 'REMARKS CREATED BY GENESIS                                                      '
       title(2) = 'REMARKS DATE: ' // date // ' CREATED BY USER: ' // name
