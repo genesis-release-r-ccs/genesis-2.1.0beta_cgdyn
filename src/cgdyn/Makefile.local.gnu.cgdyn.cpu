@@ -23,24 +23,24 @@ PPDEFS += -DPACKAGE_VERSION=\'\'
 PPDEFS += -DVERSION
 #PPDEFS += -D_SINGLE
 #PPDEFS += -D_MIXED
-PPDEFS += -DUSE_CRAY
 PPFLAGS := -traditional-cpp $(PPDEFS)
 
 #-------------------------------------------------------------------------------
 # Fortran compiler
 #-------------------------------------------------------------------------------
-FC := ftn
-FCFLAGS := -eZ
-FCFLAGS += -hfp2
-FCFLAGS += -homp
+FC := mpif90
+FCFLAGS := -fallow-argument-mismatch
+FCFLAGS += -ffree-line-length-none
+FCFLAGS += -ffast-math
+FCFLAGS += -fopenmp
 FCFLAGS += -g
-FCFLAGS += -x dir
+FCFLAGS += -march=native
 FCFLAGS += -O2
 
 #-------------------------------------------------------------------------------
 # C compiler
 #-------------------------------------------------------------------------------
-CC := cc
+CC := gcc
 #CCDEFS := -D_SINGLE
 #CCDEFS := -D_MIXED
 CCDEFS := 

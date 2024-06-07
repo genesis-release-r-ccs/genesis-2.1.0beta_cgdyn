@@ -21,7 +21,8 @@ PPDEFS += -DOMP
 PPDEFS += -DPACKAGE_NAME=\'\'
 PPDEFS += -DPACKAGE_VERSION=\'\'
 PPDEFS += -DVERSION
-PPDEFS += -D_SINGLE
+#PPDEFS += -D_SINGLE
+#PPDEFS += -D_MIXED
 PPFLAGS := -traditional-cpp $(PPDEFS)
 
 #-------------------------------------------------------------------------------
@@ -40,7 +41,9 @@ FCFLAGS += -O2
 # C compiler
 #-------------------------------------------------------------------------------
 CC := cc
-CCDEFS += -D_SINGLE
+#CCDEFS += -D_SINGLE
+#CCDEFS += -D_MIXED
+CCDEFS += 
 CCFLAGS := -g
 CCFLAGS += -O2
 CCFLAGS += $(CCDEFS)
